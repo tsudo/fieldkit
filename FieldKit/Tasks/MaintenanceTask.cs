@@ -48,9 +48,19 @@ public abstract class MaintenanceTask
         Func<string, bool>? outputFilter = null)
         => CommandRunner.RunAsync(fileName, arguments, (message, level) => Log(message, level), ct, outputFilter);
 
+    /// <summary>
+    /// Runs a PowerShell command via the system-installed Windows PowerShell 5.1.
+    /// SECURITY: All callers must pass hardcoded command strings only.
+    /// Never pass user-controlled input — the command is interpolated into
+    /// the argument string without escaping. Use -EncodedCommand if user
+    /// input is ever needed in the future.
+    /// </summary>
     protected Task<CommandResult> RunPowerShellAsync(
         string command,
         CancellationToken ct,
         Func<string, bool>? outputFilter = null)
-        => RunCommandAsync("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"", ct, outputFilter);
+    {
+        var ps = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
+        return RunCommandAsync(ps, $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"", ct, outputFilter);
+    }
 }

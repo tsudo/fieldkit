@@ -20,7 +20,8 @@ public sealed class OptimizeDrivesTask : MaintenanceTask
             return TaskResult.Ok("Previewed drive optimization");
         }
 
-        var result = await RunCommandAsync("defrag.exe", "/C /O /H /U /V", ct, line => !string.IsNullOrWhiteSpace(line));
+        var defrag = Path.Combine(Environment.SystemDirectory, "defrag.exe");
+        var result = await RunCommandAsync(defrag, "/C /O /H /U /V", ct, line => !string.IsNullOrWhiteSpace(line));
         return result.ExitCode == 0
             ? TaskResult.Ok("Drive optimization completed")
             : TaskResult.Warn($"Drive optimization exited with code {result.ExitCode}");

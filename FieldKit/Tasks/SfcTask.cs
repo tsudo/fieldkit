@@ -21,7 +21,8 @@ public sealed class SfcTask : MaintenanceTask
             return TaskResult.Ok("Previewed SFC scan");
         }
 
-        var result = await RunCommandAsync("sfc.exe", "/scannow", ct, line =>
+        var sfc = Path.Combine(Environment.SystemDirectory, "sfc.exe");
+        var result = await RunCommandAsync(sfc, "/scannow", ct, line =>
             line.Contains('%') ||
             line.Contains("Windows Resource Protection", StringComparison.OrdinalIgnoreCase));
 

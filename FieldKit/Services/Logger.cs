@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace FieldKit.Services;
 
 public class Logger : IDisposable

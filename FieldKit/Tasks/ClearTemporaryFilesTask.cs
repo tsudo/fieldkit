@@ -43,13 +43,24 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
 
                     try
                     {
-                        if (Directory.Exists(entry))
+                        var attrs = File.GetAttributes(entry);
+
+                        // Never follow symlinks, junctions, or reparse points —
+                        // a planted junction could redirect deletion to system directories.
+                        if (attrs.HasFlag(FileAttributes.ReparsePoint))
+                        {
+                            skipped++;
+                            continue;
+                        }
+
+                        if (attrs.HasFlag(FileAttributes.Directory))
                         {
                             Directory.Delete(entry, recursive: true);
                         }
-                        else if (File.Exists(entry))
+                        else
                         {
-                            File.SetAttributes(entry, FileAttributes.Normal);
+                            if (attrs.HasFlag(FileAttributes.ReadOnly))
+                                File.SetAttributes(entry, attrs & ~FileAttributes.ReadOnly);
                             File.Delete(entry);
                         }
 

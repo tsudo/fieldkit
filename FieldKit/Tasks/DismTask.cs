@@ -22,8 +22,9 @@ public sealed class DismTask : MaintenanceTask
             return TaskResult.Ok("Previewed DISM repair");
         }
 
+        var dism = Path.Combine(Environment.SystemDirectory, "dism.exe");
         var result = await RunCommandAsync(
-            "dism.exe",
+            dism,
             "/Online /Cleanup-Image /RestoreHealth",
             ct,
             line => line.Contains('%') || line.Contains("The restore operation", StringComparison.OrdinalIgnoreCase));

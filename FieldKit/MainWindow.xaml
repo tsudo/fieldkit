@@ -1,0 +1,171 @@
+<Window x:Class="FieldKit.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:FieldKit"
+        Title="FieldKit"
+        Width="1120" Height="740"
+        MinWidth="900" MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        Icon="fieldkit.ico">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============================================================ -->
+        <!-- TOOLBAR -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="0" Padding="16,10,16,10"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button x:Name="RunButton" Content="Run Selected"
+                            Click="RunButton_Click"
+                            Padding="20,8" FontWeight="SemiBold" FontSize="13"
+                            Margin="0,0,16,0"/>
+                    <CheckBox x:Name="PreviewCheckBox" Content="Preview Only"
+                              VerticalAlignment="Center" Margin="0,0,24,0"
+                              Checked="PreviewCheckBox_Changed"
+                              Unchecked="PreviewCheckBox_Changed"/>
+                    <Separator Margin="0,2,16,2"/>
+                    <Button Content="Open Log" Click="OpenLogButton_Click"
+                            Padding="14,6" Margin="0,0,8,0"/>
+                    <Button Content="System Info" Click="SystemInfoButton_Click"
+                            Padding="14,6" Margin="0,0,8,0"/>
+                    <Button Content="Toggle Log" Click="ToggleLogButton_Click"
+                            Padding="14,6"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============================================================ -->
+        <!-- MAIN CONTENT -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="1" Margin="12,8,12,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="3*" MinHeight="200"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition x:Name="LogRow" Height="*" MinHeight="60"/>
+            </Grid.RowDefinitions>
+
+            <!-- TASK AREA (operations + details) -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*" MinWidth="400"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="2*" MinWidth="220"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- OPERATIONS LIST -->
+                <Border Grid.Column="0" CornerRadius="8" Padding="16,12"
+                        Margin="0,0,6,0"
+                        Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
+                    <DockPanel>
+                        <!-- Presets -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button Content="All" Click="PresetAll_Click" Padding="14,5" Margin="0,0,6,0"/>
+                            <Button Content="Cleanup" Click="PresetCleanup_Click" Padding="14,5" Margin="0,0,6,0"/>
+                            <Button Content="Updates" Click="PresetUpdates_Click" Padding="14,5" Margin="0,0,6,0"/>
+                            <Button Content="Health" Click="PresetHealth_Click" Padding="14,5" Margin="0,0,6,0"/>
+                            <Button Content="Defaults" Click="PresetDefaults_Click" Padding="14,5"/>
+                        </StackPanel>
+
+                        <!-- Task DataGrid -->
+                        <DataGrid x:Name="TaskGrid"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  CanUserReorderColumns="False"
+                                  IsReadOnly="False"
+                                  SelectionMode="Single"
+                                  SelectionChanged="TaskGrid_SelectionChanged"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="None"
+                                  BorderThickness="0"
+                                  Background="Transparent"
+                                  RowBackground="Transparent"
+                                  AlternatingRowBackground="Transparent"
+                                  VerticalScrollBarVisibility="Auto">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Header="" Width="40"/>
+                                <DataGridTextColumn Binding="{Binding Name}" Header="Operation" Width="*" IsReadOnly="True"/>
+                                <DataGridTextColumn Binding="{Binding Category}" Header="Area" Width="120" IsReadOnly="True"/>
+                                <DataGridTextColumn Binding="{Binding EstimatedTime}" Header="Time" Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Binding="{Binding TypeLabel}" Header="Type" Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Binding="{Binding Status}" Header="Status" Width="80" IsReadOnly="True"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
+                              VerticalAlignment="Stretch" Background="Transparent"/>
+
+                <!-- DETAILS PANEL -->
+                <Border Grid.Column="2" CornerRadius="8" Padding="16,12"
+                        Margin="6,0,0,0"
+                        Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Details"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   Margin="0,0,0,10"/>
+                        <TextBox x:Name="DetailsBox"
+                                 IsReadOnly="True" TextWrapping="Wrap"
+                                 Background="Transparent" BorderThickness="0"
+                                 VerticalScrollBarVisibility="Auto"
+                                 FontSize="13" Opacity="0.85"
+                                 Text="Select an operation to see details."/>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"
+                          VerticalAlignment="Center" Background="Transparent" Margin="0,4"/>
+
+            <!-- LOG PANEL -->
+            <Border x:Name="LogPanel" Grid.Row="2" CornerRadius="8" Padding="16,10"
+                    Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Log"
+                               FontSize="13" FontWeight="SemiBold" Opacity="0.5"
+                               Margin="0,0,0,6"/>
+                    <TextBox x:Name="LogBox"
+                             IsReadOnly="True" TextWrapping="NoWrap"
+                             Background="Transparent" BorderThickness="0"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                             Text="Output will appear here when operations run."
+                             Opacity="0.4"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============================================================ -->
+        <!-- STATUS BAR -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="2" Padding="16,6,16,6"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+            <DockPanel>
+                <TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center"
+                           DockPanel.Dock="Left"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock x:Name="SelectedText" Text="Selected: 0"
+                               Opacity="0.6" Margin="0,0,20,0"/>
+                    <TextBlock x:Name="ModeText" Text="Live"
+                               Foreground="#64D28C" Margin="0,0,20,0"/>
+                    <ProgressBar x:Name="ProgressBar" Width="140" Height="12"
+                                 Minimum="0" Maximum="100" Value="0"
+                                 VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

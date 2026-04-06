@@ -33,12 +33,12 @@ public static class SystemInfo
         return null;
     }
 
-    public static bool HasInternet()
+    public static async Task<bool> HasInternetAsync()
     {
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            var response = client.GetAsync("http://www.msftconnecttest.com/connecttest.txt").Result;
+            var response = await client.GetAsync("http://www.msftconnecttest.com/connecttest.txt");
             return response.IsSuccessStatusCode;
         }
         catch { return false; }

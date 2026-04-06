@@ -2,9 +2,9 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>fieldkit.ico</ApplicationIcon>
@@ -19,11 +19,16 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <NoWarn>WPF0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Management" Version="8.0.0" />
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="fieldkit.ico" />
   </ItemGroup>
 
 </Project>
