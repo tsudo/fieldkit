@@ -1,6 +1,6 @@
 # Roadmap
 
-PC Maintenance is moving from a simple maintenance wrapper toward a broader Windows operations utility.
+FieldKit is moving from a simple maintenance wrapper toward a broader Windows operations utility.
 
 The guiding idea is that the app should stay approachable while becoming more useful for real support and troubleshooting sessions.
 

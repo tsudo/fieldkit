@@ -445,37 +445,45 @@ public class MainForm : Form
 
     private void BuildOperationsList()
     {
-        _operationsList.BeginUpdate();
-        _operationsList.Items.Clear();
-        _operationsList.Groups.Clear();
-        _taskItems.Clear();
-
-        foreach (var category in _tasks.Select(t => t.Category).Distinct())
-            _operationsList.Groups.Add(new ListViewGroup(category, HorizontalAlignment.Left) { Name = category });
-
-        foreach (var task in _tasks)
+        _syncingChecks = true;
+        try
         {
-            var item = new ListViewItem(task.Name)
+            _operationsList.BeginUpdate();
+            _operationsList.Items.Clear();
+            _operationsList.Groups.Clear();
+            _taskItems.Clear();
+
+            foreach (var category in _tasks.Select(t => t.Category).Distinct())
+                _operationsList.Groups.Add(new ListViewGroup(category, HorizontalAlignment.Left) { Name = category });
+
+            foreach (var task in _tasks)
             {
-                Tag = task,
-                Checked = task.SelectedByDefault,
-                Group = _operationsList.Groups[task.Category]
-            };
-            item.SubItems.Add(task.Category);
-            item.SubItems.Add(task.EstimatedTime);
-            item.SubItems.Add(task.IsAdvanced ? "Advanced" : "Routine");
-            item.SubItems.Add("Ready");
+                var item = new ListViewItem(task.Name)
+                {
+                    Tag = task,
+                    Checked = task.SelectedByDefault,
+                    Group = _operationsList.Groups[task.Category]
+                };
+                item.SubItems.Add(task.Category);
+                item.SubItems.Add(task.EstimatedTime);
+                item.SubItems.Add(task.IsAdvanced ? "Advanced" : "Routine");
+                item.SubItems.Add("Ready");
 
-            _operationsList.Items.Add(item);
-            _taskItems[task] = item;
-            _taskStatuses[task] = "Ready";
-            UpdateListItemVisual(task);
+                _operationsList.Items.Add(item);
+                _taskItems[task] = item;
+                _taskStatuses[task] = "Ready";
+                UpdateListItemVisual(task);
+            }
+
+            if (_operationsList.Items.Count > 0)
+                _operationsList.Items[0].Selected = true;
+
+            _operationsList.EndUpdate();
         }
-
-        if (_operationsList.Items.Count > 0)
-            _operationsList.Items[0].Selected = true;
-
-        _operationsList.EndUpdate();
+        finally
+        {
+            _syncingChecks = false;
+        }
     }
 
     private void OperationsListOnItemChecked(object? sender, ItemCheckedEventArgs e)
@@ -685,8 +693,8 @@ public class MainForm : Form
 
     private void UpdateSelectionSummary()
     {
-        var selected = _taskItems.Count(kvp => kvp.Value.Checked);
-        var advanced = _taskItems.Count(kvp => kvp.Value.Checked && kvp.Key.IsAdvanced);
+        var selected = _taskItems.Count(kvp => kvp.Value.Index >= 0 && kvp.Value.Checked);
+        var advanced = _taskItems.Count(kvp => kvp.Value.Index >= 0 && kvp.Value.Checked && kvp.Key.IsAdvanced);
 
         _selectedCountLabel.Text = $"Selected{Environment.NewLine}{selected}";
         _advancedCountLabel.Text = $"Advanced{Environment.NewLine}{advanced}";

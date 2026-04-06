@@ -9,8 +9,6 @@ Portable Windows maintenance in a single exe. No installer, no bloat, no telemet
 
 FieldKit runs cleanup, updates, and system health checks from one window. Pick a preset, click run, and get back to work.
 
-<img src="assets/screenshots/fieldkit-main.png" width="80%" alt="FieldKit main window showing operations list and quick presets">
-
 ## Download
 
 Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page.
