@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/github/license/tsudo/fieldkit)
 ![Release](https://img.shields.io/github/v/release/tsudo/fieldkit)
 ![Downloads](https://img.shields.io/github/downloads/tsudo/fieldkit/total)
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
+![.NET](https://img.shields.io/badge/.NET-9.0-512BD4)
 
 Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.
 
@@ -15,7 +15,7 @@ Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fiel
 
 - Windows 10 or 11, 64-bit
 - No installer — run it from anywhere
-- Administrator approval required at launch
+- Requires administrator privileges at launch
 
 ### SmartScreen Warning
 
@@ -63,28 +63,25 @@ The source code is right here — read it, build it yourself, or check the relea
 
 ## Quick Presets
 
-One-click focus modes so you don't have to pick tasks individually:
+One-click focus modes:
 
-- **All Tasks** — full maintenance pass
+- **All** — full maintenance pass
 - **Cleanup** — temp files, recycle bin, DNS, Storage Sense
 - **Updates** — Windows, Office, Store, winget
-- **System Health** — SFC, DISM, drive optimization
-- **Custom Reset** — clear selections and build your own
+- **Health** — SFC, DISM, drive optimization
+- **Defaults** — reset to safe default selections
 
 ## How To Use
 
 1. Launch `FieldKit.exe` and approve the UAC prompt
 2. Pick a preset or select operations manually
-3. Leave **Preview Only** checked for a dry run first
-4. Click **Run Selected**
-5. Watch the status column and live log
-6. Review the summary and reboot if recommended
+3. Click **Run Selected**
+4. Watch the status column and log
+5. Review the summary and reboot if recommended
 
 ## Safer Defaults
 
 Routine operations are selected at launch. Advanced repair tools (SFC, DISM, drive optimization) are opt-in — you have to select them deliberately.
-
-Preview mode is available for every operation so you can see what will happen before it happens.
 
 ## Companion Script
 
@@ -113,7 +110,7 @@ FieldKit reports these cases clearly in the status column and log instead of fai
 
 ## Building From Source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
 
 ```bash
 dotnet build FieldKit.sln
@@ -125,7 +122,7 @@ To publish a portable single-file exe:
 dotnet publish FieldKit.sln -c Release
 ```
 
-Output: `FieldKit/bin/Release/net8.0-windows/win-x64/publish/FieldKit.exe`
+Output: `FieldKit/bin/Release/net9.0-windows/win-x64/publish/FieldKit.exe`
 
 ## Privacy
 
@@ -140,7 +137,6 @@ FieldKit performs privileged system operations including deleting files, modifyi
 **Before running:**
 - Back up important files
 - Review the selected operations
-- Use Preview Only mode first if you're unsure
 
 The author is not responsible for data loss, system instability, or any other outcome resulting from the use of this software. You are responsible for understanding what each operation does before running it.
 

@@ -99,14 +99,21 @@ That means the user experience should answer:
 
 ## UI Direction
 
-The current operations-list layout is the base direction.
+v1.0 migrated from WinForms to WPF with .NET 9 Fluent dark theme.
+
+Current state:
+
+- DataGrid-based task list with checkbox selection
+- Resizable split panels (operations / details / log)
+- Fluent dark mode with system-native controls
+- Streamlined toolbar (Run Selected, Open Log, System Info)
 
 Future UI goals:
 
 - keep the main screen clean and dashboard-like
 - make presets and operation focus obvious
 - show useful summaries without forcing the user into separate screens
-- reduce the "developer tool" feel in favor of a polished desktop utility feel
+- consider WinUI 3 migration for Mica/Acrylic effects in v2
 
 ## Notable Open Questions
 

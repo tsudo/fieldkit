@@ -12,8 +12,6 @@ public partial class App : Application
     {
         try
         {
-            ThemeMode = ThemeMode.Dark;
-
             if (!DisclaimerWindow.HasAccepted())
             {
                 var disclaimer = new DisclaimerWindow();

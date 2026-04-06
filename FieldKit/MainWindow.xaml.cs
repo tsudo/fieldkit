@@ -14,7 +14,6 @@ public partial class MainWindow : Window
     private readonly Logger _logger;
     private readonly ObservableCollection<TaskViewModel> _taskViewModels = new();
     private CancellationTokenSource? _runCts;
-    private bool _logVisible = true;
 
     public MainWindow()
     {
@@ -59,7 +58,6 @@ public partial class MainWindow : Window
     // ================================================================
 
     private async void RunButton_Click(object sender, RoutedEventArgs e) => await RunSelectedTasksAsync();
-    private void PreviewCheckBox_Changed(object sender, RoutedEventArgs e) => UpdateSummary();
 
     private void OpenLogButton_Click(object sender, RoutedEventArgs e)
     {
@@ -84,13 +82,6 @@ public partial class MainWindow : Window
     {
         var win = new SystemInfoWindow { Owner = this };
         win.ShowDialog();
-    }
-
-    private void ToggleLogButton_Click(object sender, RoutedEventArgs e)
-    {
-        _logVisible = !_logVisible;
-        LogPanel.Visibility = _logVisible ? Visibility.Visible : Visibility.Collapsed;
-        LogRow.Height = _logVisible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
     }
 
     // ================================================================
@@ -157,12 +148,6 @@ public partial class MainWindow : Window
         var advanced = _taskViewModels.Count(vm => vm.IsSelected && vm.Task.IsAdvanced);
 
         SelectedText.Text = $"Selected: {selected}" + (advanced > 0 ? $" ({advanced} advanced)" : "");
-
-        var preview = PreviewCheckBox.IsChecked == true;
-        ModeText.Text = preview ? "Preview" : "Live";
-        ModeText.Foreground = preview
-            ? new SolidColorBrush(Color.FromRgb(240, 195, 90))
-            : new SolidColorBrush(Color.FromRgb(100, 210, 140));
     }
 
     // ================================================================
@@ -183,7 +168,7 @@ public partial class MainWindow : Window
 
         ClearLogPlaceholder();
         _runCts = new CancellationTokenSource();
-        var dryRun = PreviewCheckBox.IsChecked == true;
+        var dryRun = false;
         var startFree = TryGetSystemDriveFreeSpace();
         var rebootRecommended = false;
         int success = 0, warning = 0, error = 0, skipped = 0;
@@ -278,7 +263,6 @@ public partial class MainWindow : Window
     private void SetRunningState(bool running)
     {
         RunButton.IsEnabled = !running;
-        PreviewCheckBox.IsEnabled = !running;
         TaskGrid.IsEnabled = !running;
     }
 
