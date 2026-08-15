@@ -110,7 +110,7 @@ FieldKit reports these cases clearly in the status column and log instead of fai
 
 ## Building From Source
 
-Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). The exact SDK version is pinned in `global.json`.
 
 ```bash
 dotnet build FieldKit.sln
@@ -119,10 +119,10 @@ dotnet build FieldKit.sln
 To publish a portable single-file exe:
 
 ```bash
-dotnet publish FieldKit.sln -c Release
+dotnet publish FieldKit/FieldKit.csproj -c Release -o publish
 ```
 
-Output: `FieldKit/bin/Release/net9.0-windows/win-x64/publish/FieldKit.exe`
+Output: `publish/FieldKit.exe`
 
 ## Privacy
 
