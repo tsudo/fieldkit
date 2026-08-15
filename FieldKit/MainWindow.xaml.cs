@@ -15,15 +15,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TaskViewModel> _taskViewModels = new();
     private CancellationTokenSource? _runCts;
 
-    public MainWindow()
+    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger)
     {
         InitializeComponent();
-        _tasks = Array.Empty<MaintenanceTask>();
-        _logger = new Logger();
-    }
-
-    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger) : this()
-    {
         _tasks = tasks;
         _logger = logger;
 
