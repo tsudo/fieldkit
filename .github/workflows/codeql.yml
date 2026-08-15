@@ -11,33 +11,49 @@ on:
 
 jobs:
   analyze:
-    name: Analyze C#
+    name: Analyze ${{ matrix.language }}
     runs-on: windows-latest
     permissions:
       security-events: write
       actions: read
       contents: read
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Manual build mode rather than buildless: FieldKit already has a
+          # known-good build, and compiling gives CodeQL full type resolution
+          # across the partial classes WPF generates from XAML.
+          - language: csharp
+            build-mode: manual
+          # The workflows in this repo are themselves analyzable.
+          - language: actions
+            build-mode: none
+
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v6
+        if: matrix.language == 'csharp'
         with:
+          # Latest 10.0 SDK, matching build.yml. Resolving from global.json
+          # instead would freeze the embedded self-contained runtime at
+          # whatever that SDK bundles — and a self-contained app only gets
+          # runtime CVE fixes by being rebuilt.
           dotnet-version: "10.0.x"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: csharp
-          build-mode: manual
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
-      # Manual build mode rather than buildless: FieldKit already has a known-good
-      # build, and compiling gives CodeQL full type resolution across the WPF
-      # partial classes that XAML generates.
       - name: Build
+        if: matrix.language == 'csharp'
         run: dotnet build FieldKit.sln --configuration Release
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:csharp"
+          category: "/language:${{ matrix.language }}"

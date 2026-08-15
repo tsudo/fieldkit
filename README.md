@@ -110,7 +110,7 @@ FieldKit reports these cases clearly in the status column and log instead of fai
 
 ## Building From Source
 
-Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). The exact SDK version is pinned in `global.json`.
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). `global.json` sets `10.0.100` as the minimum; the build uses the newest .NET 10 SDK you have installed.
 
 ```bash
 dotnet build FieldKit.sln
