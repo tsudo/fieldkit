@@ -10,8 +10,24 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: "10.0.x"
+
       - run: dotnet build FieldKit.sln --configuration Release
+
+      # Verify the configuration that actually ships. `dotnet build` does not
+      # exercise single-file packing, self-contained runtime bundling, or
+      # compression — all of which have their own failure modes.
+      - name: Verify release publish
+        run: dotnet publish FieldKit/FieldKit.csproj --configuration Release --output publish
+
+      - name: Confirm single-file artifact
+        shell: pwsh
+        run: |
+          $exe = "publish/FieldKit.exe"
+          if (-not (Test-Path $exe)) { throw "Expected single-file artifact at $exe" }
+          $sizeMb = [math]::Round((Get-Item $exe).Length / 1MB, 1)
+          Write-Host "FieldKit.exe = $sizeMb MB"
+          if ($sizeMb -lt 20) { throw "Artifact is $sizeMb MB - self-contained runtime looks missing" }
