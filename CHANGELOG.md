@@ -19,8 +19,11 @@ heading for end of support and fixes two defects found during review.
   2028-11-14.
 - `System.Management` and `System.ServiceProcess.ServiceController` updated from
   9.0.0 to 10.0.11.
-- The SDK version is pinned in `global.json` so builds are reproducible instead
-  of following whatever SDK happens to be newest on the build machine.
+- `global.json` sets .NET 10 as the minimum SDK, so a build on an older SDK
+  fails immediately with a clear message. It is a floor rather than a pin by
+  design: the SDK in use determines which runtime version is embedded in the
+  self-contained exe, and a self-contained app only receives runtime fixes when
+  it is rebuilt, so tracking forward is the safer default.
 
 ### Fixed
 
@@ -31,6 +34,14 @@ heading for end of support and fixes two defects found during review.
   exe on every launch.
 - Unhandled exceptions on the UI thread are now caught, written to the log, and
   reported with the log path, instead of closing the app without explanation.
+- A run that stops early now says so. Previously the status bar read "Run
+  complete" at 100% whether or not the run finished; an interrupted run reports
+  "Run aborted", marks the operations that did not finish, and shows what went
+  wrong instead of a completion summary.
+- Closing the window mid-run no longer disposes the cancellation token while the
+  run loop is still using it. Every remaining operation used to fail with
+  `ObjectDisposedException`, which read in the log as many broken operations
+  rather than one lifecycle bug.
 
 ### Added
 

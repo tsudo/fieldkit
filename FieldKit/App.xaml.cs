@@ -11,8 +11,6 @@ public partial class App : Application
 
     private void App_Startup(object sender, StartupEventArgs e)
     {
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
-
         try
         {
             if (!DisclaimerWindow.HasAccepted())
@@ -47,6 +45,12 @@ public partial class App : Application
 
             var mainWindow = new MainWindow(tasks, _logger);
             mainWindow.Show();
+
+            // Registered only once startup has succeeded. Anything that fails
+            // before this point belongs to the catch below, which shuts down
+            // deliberately — including failures inside the disclaimer dialog,
+            // whose whole job is obtaining consent before destructive work.
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
         }
         catch (Exception ex)
         {
@@ -58,15 +62,17 @@ public partial class App : Application
 
     /// <summary>
     /// Last-chance handler for exceptions raised on the UI thread after startup.
-    /// Individual maintenance tasks already catch their own failures, so anything
-    /// reaching here is a UI-layer bug. The app stays alive so the user keeps
-    /// access to the log path rather than losing it to a silent crash.
+    /// Maintenance tasks catch their own failures and the run loop reports its
+    /// own aborts, so anything reaching here is a UI-layer bug outside a run.
+    /// The app stays alive so the user keeps access to the log path rather than
+    /// losing it to a silent crash.
     /// </summary>
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        _logger?.Log($"Unhandled UI exception: {e.Exception}", "ERROR");
+        var logger = _logger;
+        logger?.Log($"Unhandled UI exception: {e.Exception}", "ERROR");
 
-        var logNote = _logger is null ? "" : $"\n\nLog: {_logger.LogFilePath}";
+        var logNote = logger is null ? "" : $"\n\nLog: {logger.LogFilePath}";
         MessageBox.Show(
             $"FieldKit hit an unexpected error:\n\n{e.Exception.Message}{logNote}",
             "FieldKit — Unexpected Error",
