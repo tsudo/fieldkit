@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an operation or change for FieldKit.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        [ROADMAP.md](https://github.com/tsudo/fieldkit/blob/main/ROADMAP.md)
+        covers what is already planned and what is deliberately out of scope.
+        Worth a look first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation you run into, not the implementation you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How you handle it today
+      description: The manual steps, script, or other tool you currently use.
+    validations:
+      required: false

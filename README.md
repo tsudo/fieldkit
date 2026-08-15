@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/github/license/tsudo/fieldkit)
 ![Release](https://img.shields.io/github/v/release/tsudo/fieldkit)
 ![Downloads](https://img.shields.io/github/downloads/tsudo/fieldkit/total)
-![.NET](https://img.shields.io/badge/.NET-9.0-512BD4)
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)
 
 Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.
 
@@ -11,7 +11,7 @@ FieldKit runs cleanup, updates, and system health checks from one window. Pick a
 
 ## Download
 
-Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page.
+Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page. See the [changelog](CHANGELOG.md) for what changed.
 
 - Windows 10 or 11, 64-bit
 - No installer — run it from anywhere

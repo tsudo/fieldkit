@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in FieldKit did not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every run writes a timestamped log. Attaching it makes a report far
+        easier to act on — use **Open Log** in the toolbar to find it.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: operation
+    attributes:
+      label: Which operation
+      description: The name shown in the operations list, if the problem was in one specific task.
+      placeholder: Clear Temporary Files
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: FieldKit version
+      description: Right-click FieldKit.exe, then Properties, then Details.
+      placeholder: 1.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Run `winver`, or Settings, then System, then About.
+      placeholder: Windows 11 24H2 (26100.2314)
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log output
+      description: Paste the relevant part of the log, or attach the whole file.
+      render: text
+    validations:
+      required: false
