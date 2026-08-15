@@ -99,7 +99,7 @@ That means the user experience should answer:
 
 ## UI Direction
 
-v1.0 migrated from WinForms to WPF with .NET 9 Fluent dark theme.
+v1.0 migrated from WinForms to WPF with a Fluent dark theme. v1.1 moved the runtime to .NET 10 (LTS).
 
 Current state:
 

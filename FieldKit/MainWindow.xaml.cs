@@ -15,15 +15,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TaskViewModel> _taskViewModels = new();
     private CancellationTokenSource? _runCts;
 
-    public MainWindow()
+    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger)
     {
         InitializeComponent();
-        _tasks = Array.Empty<MaintenanceTask>();
-        _logger = new Logger();
-    }
-
-    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger) : this()
-    {
         _tasks = tasks;
         _logger = logger;
 
@@ -37,7 +31,10 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _logger.LogWritten -= OnLogWritten;
-            _runCts?.Dispose();
+            // Cancel, don't dispose — the run loop is still reading this token
+            // and owns disposal in its finally. Disposing here made every
+            // remaining operation fail with ObjectDisposedException.
+            _runCts?.Cancel();
         };
 
         UpdateSummary();
@@ -176,6 +173,7 @@ public partial class MainWindow : Window
         SetRunningState(true);
         _logger.Log($"Run started. Preview: {(dryRun ? "ON" : "OFF")}. Log: {_logger.LogFilePath}", "INFO");
 
+        var completed = false;
         try
         {
             for (int i = 0; i < selected.Count; i++)
@@ -215,18 +213,36 @@ public partial class MainWindow : Window
 
                 RefreshDetails();
             }
+
+            completed = true;
+        }
+        catch (Exception ex)
+        {
+            // The run owns its own failure. Letting this reach the global
+            // dispatcher handler would leave the status bar reading
+            // "Run complete" on a run that stopped halfway through.
+            _logger.Log($"Run aborted: {ex}", "ERROR");
+
+            foreach (var vm in selected.Where(vm => vm.Status == "Running"))
+                vm.Status = "Aborted";
+
+            MessageBox.Show(this,
+                $"The run stopped early and did not finish.\n\n{ex.Message}\n\nLog: {_logger.LogFilePath}",
+                "FieldKit — Run Aborted", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
-            ProgressBar.Value = 100;
-            StatusText.Text = "Run complete";
+            ProgressBar.Value = completed ? 100 : 0;
+            StatusText.Text = completed ? "Run complete" : "Run aborted";
             SetRunningState(false);
             _runCts.Dispose();
             _runCts = null;
+            RefreshDetails();
         }
 
-        ShowCompletionSummary(dryRun, success, warning, error, skipped,
-            startFree, TryGetSystemDriveFreeSpace(), rebootRecommended);
+        if (completed)
+            ShowCompletionSummary(dryRun, success, warning, error, skipped,
+                startFree, TryGetSystemDriveFreeSpace(), rebootRecommended);
     }
 
     private void ShowCompletionSummary(bool dryRun, int success, int warning, int error, int skipped,

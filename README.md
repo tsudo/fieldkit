@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/github/license/tsudo/fieldkit)
 ![Release](https://img.shields.io/github/v/release/tsudo/fieldkit)
 ![Downloads](https://img.shields.io/github/downloads/tsudo/fieldkit/total)
-![.NET](https://img.shields.io/badge/.NET-9.0-512BD4)
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)
 
 Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.
 
@@ -11,7 +11,7 @@ FieldKit runs cleanup, updates, and system health checks from one window. Pick a
 
 ## Download
 
-Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page.
+Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page. See the [changelog](CHANGELOG.md) for what changed.
 
 - Windows 10 or 11, 64-bit
 - No installer — run it from anywhere
@@ -110,7 +110,7 @@ FieldKit reports these cases clearly in the status column and log instead of fai
 
 ## Building From Source
 
-Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). `global.json` sets `10.0.100` as the minimum; the build uses the newest .NET 10 SDK you have installed.
 
 ```bash
 dotnet build FieldKit.sln
@@ -119,10 +119,10 @@ dotnet build FieldKit.sln
 To publish a portable single-file exe:
 
 ```bash
-dotnet publish FieldKit.sln -c Release
+dotnet publish FieldKit/FieldKit.csproj -c Release -o publish
 ```
 
-Output: `FieldKit/bin/Release/net9.0-windows/win-x64/publish/FieldKit.exe`
+Output: `publish/FieldKit.exe`
 
 ## Privacy
 

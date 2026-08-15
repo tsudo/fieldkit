@@ -5,3 +5,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+
+  # The workflows pin actions by major tag; without this ecosystem those pins
+  # get no update PRs and drift silently.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
