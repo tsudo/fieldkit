@@ -3,9 +3,9 @@ namespace FieldKit.Tasks;
 public sealed class OptimizeDrivesTask : MaintenanceTask
 {
     public OptimizeDrivesTask() : base(
-        "Optimize Drives",
+        "Optimize drives",
         "Runs Windows drive optimization. SSDs are retrimmed and HDDs are defragmented as appropriate.",
-        "Repair & Optimize",
+        "Repair",
         "1-5 min",
         selectedByDefault: false,
         isAdvanced: true)
@@ -17,7 +17,7 @@ public sealed class OptimizeDrivesTask : MaintenanceTask
         if (dryRun)
         {
             Log("Would run defrag /C /O /H /U /V", "INFO");
-            return TaskResult.Ok("Previewed drive optimization");
+            return TaskResult.Ok("Would optimize drives");
         }
 
         var defrag = Path.Combine(Environment.SystemDirectory, "defrag.exe");

@@ -3,10 +3,10 @@ namespace FieldKit.Tasks;
 public sealed class OfficeUpdateTask : MaintenanceTask
 {
     public OfficeUpdateTask() : base(
-        "Update Microsoft Office",
+        "Microsoft Office",
         "Triggers Click-to-Run updates for Microsoft 365 and compatible Office installs.",
-        "Updates",
-        "Quick",
+        "Update",
+        "Under 1 min",
         requiresInternet: true)
     {
     }
@@ -30,7 +30,7 @@ public sealed class OfficeUpdateTask : MaintenanceTask
         if (dryRun)
         {
             Log($"Would run {client} /update user", "INFO");
-            return TaskResult.Ok("Previewed Office update");
+            return TaskResult.Ok("Would trigger an Office update");
         }
 
         var result = await RunCommandAsync(client, "/update user", ct, line => !string.IsNullOrWhiteSpace(line));

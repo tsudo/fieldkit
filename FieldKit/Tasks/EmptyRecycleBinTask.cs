@@ -3,10 +3,10 @@ namespace FieldKit.Tasks;
 public sealed class EmptyRecycleBinTask : MaintenanceTask
 {
     public EmptyRecycleBinTask() : base(
-        "Empty Recycle Bin",
+        "Empty recycle bin",
         "Permanently removes files currently sitting in the Recycle Bin.",
-        "Cleanup",
-        "Quick")
+        "Clean up",
+        "Under 1 min")
     {
     }
 
@@ -15,7 +15,7 @@ public sealed class EmptyRecycleBinTask : MaintenanceTask
         if (dryRun)
         {
             Log("Would empty the Recycle Bin.", "INFO");
-            return TaskResult.Ok("Previewed Recycle Bin cleanup");
+            return TaskResult.Ok("Would empty the Recycle Bin");
         }
 
         var result = await RunPowerShellAsync("Clear-RecycleBin -Force -ErrorAction Stop", ct, line => !string.IsNullOrWhiteSpace(line));

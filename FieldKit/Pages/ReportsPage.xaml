@@ -1,0 +1,68 @@
+<UserControl x:Class="FieldKit.Pages.ReportsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Reports" Style="{StaticResource Fk.PageTitle}"/>
+            <TextBlock Text="What FieldKit has done on this PC, newest first."
+                       Style="{StaticResource Fk.PageSubtitle}"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
+            <StackPanel Margin="0,0,10,0">
+                <Border x:Name="EmptyCard" Style="{StaticResource Fk.Card}" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="No runs recorded yet" FontSize="13.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Fk.Text.Primary}"/>
+                        <TextBlock Style="{StaticResource Fk.RowDetail}"
+                                   Text="Run something from Maintain, Apps or Support kit and it shows up here."/>
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl x:Name="RunList" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource Fk.Row}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="4,0,0,0">
+                                        <TextBlock Text="{Binding Title}" FontSize="13.5"
+                                                   Foreground="{StaticResource Fk.Text.Primary}"/>
+                                        <TextBlock Text="{Binding When}" Style="{StaticResource Fk.RowDetail}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Style="{StaticResource Fk.Pill}" Tag="{Binding Tone}"
+                                            Margin="12,0">
+                                        <TextBlock Text="{Binding Counts}"/>
+                                    </Border>
+                                    <Button Grid.Column="2" Content="Open log" Padding="10,3" MinHeight="26"
+                                            FontSize="12" Style="{StaticResource Fk.Button}"
+                                            Tag="{Binding LogFile}" Click="OpenRunLog_Click"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Style="{StaticResource Fk.ActionBar}">
+            <DockPanel>
+                <Button Content="View system info" Style="{StaticResource Fk.Button}" Click="SystemInfo_Click"/>
+                <Button Content="Open log folder" Style="{StaticResource Fk.Button}" Margin="8,0,0,0"
+                        Click="OpenLogFolder_Click"/>
+                <TextBlock x:Name="StatusText" Style="{StaticResource Fk.Secondary}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

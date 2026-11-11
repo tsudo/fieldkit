@@ -7,10 +7,13 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- UI work only: `dotnet run -p:FieldKitNoElevate=true` starts without the
+         elevation prompt. Maintenance steps that need admin rights will fail. -->
+    <ApplicationManifest Condition="'$(FieldKitNoElevate)' == 'true'">app.dev.manifest</ApplicationManifest>
     <ApplicationIcon>fieldkit.ico</ApplicationIcon>
     <AssemblyName>FieldKit</AssemblyName>
     <RootNamespace>FieldKit</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>2.0.0-preview.1</Version>
     <Authors>Keith S. Crawford</Authors>
     <Product>FieldKit</Product>
     <Description>Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.</Description>
@@ -29,6 +32,11 @@
 
   <ItemGroup>
     <Resource Include="fieldkit.ico" />
+    <EmbeddedResource Include="Catalog\apps.json" LogicalName="FieldKit.Catalog.apps.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FieldKit.Tests" />
   </ItemGroup>
 
 </Project>

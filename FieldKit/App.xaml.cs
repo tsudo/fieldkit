@@ -34,7 +34,6 @@ public partial class App : Application
                 new WindowsUpdateTask(),
                 new OfficeUpdateTask(),
                 new StoreUpdateTask(),
-                new WingetUpdateTask(),
                 new SfcTask(),
                 new DismTask(),
                 new OptimizeDrivesTask()
@@ -43,8 +42,13 @@ public partial class App : Application
             foreach (var task in tasks)
                 task.Logger = _logger;
 
-            var mainWindow = new MainWindow(tasks, _logger);
+            var pageIndex = Array.IndexOf(e.Args, "--page");
+            var startPage = pageIndex >= 0 && pageIndex + 1 < e.Args.Length ? e.Args[pageIndex + 1] : null;
+            var mainWindow = new MainWindow(tasks, _logger, startPage);
             mainWindow.Show();
+#if DEBUG
+            ScheduleDebugCapture(mainWindow, e.Args);
+#endif
 
             // Registered only once startup has succeeded. Anything that fails
             // before this point belongs to the catch below, which shuts down
@@ -80,6 +84,45 @@ public partial class App : Application
 
         e.Handled = true;
     }
+
+#if DEBUG
+    /// <summary>
+    /// Debug builds only: `--capture file.png [--capture-delay seconds]` renders the
+    /// window's own visual tree to a PNG and exits. It draws from WPF, not from the
+    /// screen, so it works with the window in the background and never picks up
+    /// anything else on the desktop. Used to review layout changes.
+    /// </summary>
+    private void ScheduleDebugCapture(Window window, string[] args)
+    {
+        var index = Array.IndexOf(args, "--capture");
+        if (index < 0 || index + 1 >= args.Length) return;
+
+        var path = args[index + 1];
+        var delayIndex = Array.IndexOf(args, "--capture-delay");
+        var delay = delayIndex >= 0 && delayIndex + 1 < args.Length && int.TryParse(args[delayIndex + 1], out var seconds)
+            ? seconds : 3;
+
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (window.Content is FrameworkElement root)
+            {
+                const double scale = 1.5;
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    (int)(root.ActualWidth * scale), (int)(root.ActualHeight * scale),
+                    96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(root);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using var file = System.IO.File.Create(path);
+                encoder.Save(file);
+            }
+            Shutdown();
+        };
+        timer.Start();
+    }
+#endif
 
     protected override void OnExit(ExitEventArgs e)
     {

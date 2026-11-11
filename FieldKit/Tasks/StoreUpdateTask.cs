@@ -5,10 +5,10 @@ namespace FieldKit.Tasks;
 public class StoreUpdateTask : MaintenanceTask
 {
     public StoreUpdateTask() : base(
-        "Update Store Apps",
+        "Microsoft Store apps",
         "Triggers a Microsoft Store update scan when the required Windows management interface is available.",
-        "Updates",
-        "Quick",
+        "Update",
+        "Under 1 min",
         requiresInternet: true) { }
 
     public override async Task<TaskResult> ExecuteAsync(bool dryRun, CancellationToken ct)
@@ -18,7 +18,7 @@ public class StoreUpdateTask : MaintenanceTask
             if (dryRun)
             {
                 Log("[DryRun] Would invoke MDM Store update scan", "INFO");
-                return TaskResult.Ok("Dry run");
+                return TaskResult.Ok("Would ask the Store to check for updates");
             }
 
             try

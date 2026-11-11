@@ -5,10 +5,10 @@ namespace FieldKit.Tasks;
 public sealed class FlushDnsCacheTask : MaintenanceTask
 {
     public FlushDnsCacheTask() : base(
-        "Clear Network Cache",
+        "Clear network cache",
         "Flushes the DNS client cache to clear stale name lookups.",
-        "Cleanup",
-        "Quick")
+        "Clean up",
+        "Under 1 min")
     {
     }
 
@@ -21,7 +21,7 @@ public sealed class FlushDnsCacheTask : MaintenanceTask
                 using var service = new ServiceController("Dnscache");
                 ContextInfo = $"DNS Client service: {service.Status}";
             }
-            catch
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
                 ContextInfo = "DNS Client service status unavailable";
             }
@@ -36,15 +36,16 @@ public sealed class FlushDnsCacheTask : MaintenanceTask
             if (service.Status != ServiceControllerStatus.Running)
                 return TaskResult.Warn("DNS Client service is not running on this system");
         }
-        catch
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
+            Log($"DNS Client service query failed: {ex.Message}", "WARN");
             return TaskResult.Warn("DNS Client service could not be queried");
         }
 
         if (dryRun)
         {
             Log("Would flush the DNS client cache.", "INFO");
-            return TaskResult.Ok("Previewed DNS cache flush");
+            return TaskResult.Ok("Would flush the DNS cache");
         }
 
         var result = await RunPowerShellAsync("Clear-DnsClientCache -ErrorAction Stop", ct);

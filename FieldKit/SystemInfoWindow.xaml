@@ -7,7 +7,7 @@
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         Icon="fieldkit.ico"
-        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+        Background="{StaticResource Fk.Bg.Window}">
 
     <Grid Margin="0">
         <Grid.RowDefinitions>
@@ -20,17 +20,17 @@
                  VerticalScrollBarVisibility="Auto"
                  HorizontalScrollBarVisibility="Auto"
                  BorderThickness="0"
-                 FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                 FontFamily="{StaticResource Fk.Font.Mono}" FontSize="12"
+                 Background="Transparent" Foreground="{StaticResource Fk.Text.Primary}"
                  Padding="16,12" Margin="0"/>
 
         <Border Grid.Row="1" Padding="12,8"
                 BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+                BorderBrush="{StaticResource Fk.Border}">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Export to File" Padding="16,6" Margin="0,0,8,0"
-                        Click="Export_Click"
-                        Background="#3782E1" Foreground="White"/>
-                <Button Content="Close" Padding="16,6"
+                <Button Content="Save to file" Style="{StaticResource Fk.Button.Primary}" Margin="0,0,8,0"
+                        Click="Export_Click"/>
+                <Button Content="Close" Style="{StaticResource Fk.Button}"
                         Click="Close_Click"/>
             </StackPanel>
         </Border>

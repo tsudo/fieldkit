@@ -23,6 +23,8 @@ jobs:
 
       - run: dotnet build FieldKit.sln --configuration Release
 
+      - run: dotnet test FieldKit.sln --configuration Release --no-build
+
       # Verify the configuration that actually ships. `dotnet build` does not
       # exercise single-file packing, self-contained runtime bundling, or
       # compression — all of which have their own failure modes.

@@ -5,6 +5,69 @@ All notable changes to FieldKit are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2.0.0 preview
+
+FieldKit becomes a four-page app: Maintain, Apps, Support kit and Reports.
+
+### Added
+
+- **Apps page.** Installs and updates software through winget from a curated
+  catalog (`FieldKit/Catalog/apps.json`), with bundles and a list of other
+  installed apps that have updates. Nothing installs before a confirmation that
+  names every change.
+- **Support kit page.** Downloads selected Sysinternals tools from Microsoft,
+  verifies each program's Microsoft signature, and writes text snapshots of the
+  PC (system, network, installed apps, startup items, recent errors) into
+  `C:\FieldKit`. Zip for sharing and Remove kit are included.
+- **Reports page.** Lists every maintenance run, app install and kit build with
+  its result, duration and log.
+- **Stop button** on every long-running job. The current step is ended and the
+  rest are marked skipped.
+- Per-step status, elapsed time and result on each row, and a summary card in
+  the window instead of a message box.
+- A notice when FieldKit is running as a different account from the one signed
+  in at the desktop.
+- Unit tests (`FieldKit.Tests`) for winget parsing, the catalog, and task
+  result logic. CI runs them.
+- `--page maintain|apps|kit|reports` opens FieldKit on that page.
+
+### Changed
+
+- One theme file (`FieldKit/Themes/Theme.xaml`) now holds every colour and
+  control style. The task grid is replaced by a grouped checklist.
+- Logs moved from `%TEMP%` to `C:\FieldKit\Logs`.
+- App updates moved from a mid-run dialog on the Maintain page to the Apps page,
+  so a maintenance run no longer waits on a dialog.
+- Windows Update now asks the Windows Update Agent what is pending, lists it,
+  and opens Settings. It no longer calls the undocumented `UsoClient`.
+- Clear temporary files leaves anything changed in the last 24 hours alone.
+- Folders, files and links are opened through Explorer rather than started from
+  the elevated process.
+- PowerShell steps are passed with `-EncodedCommand`.
+
+### Fixed
+
+- Create restore point reported success when Windows silently skipped it (one
+  already existed from the last 24 hours), and treated any output containing
+  "24" as that case. It now compares restore point sequence numbers.
+- Check system files could never read its own result: `sfc` writes UTF-16 when
+  redirected and was decoded as a single-byte encoding, so every run fell
+  through to "SFC completed".
+- Clear temporary files returned a warning on nearly every run because the open
+  log file in `%TEMP%` counted as a locked item, and each run deleted the logs
+  of earlier ones.
+- winget's update list was parsed by fixed column offsets, which broke on
+  non-Latin app names and when winget omitted the Source column. Rows are now
+  read from the right, and package IDs are validated before use. Upgrades pass
+  `--exact`.
+- winget output was decoded with the wrong encoding.
+- The licence dialog showed "v1.0" regardless of version.
+
+### Removed
+
+- `WingetUpdateWindow` and the "Update Installed Apps" maintenance step, both
+  replaced by the Apps page.
+
 ## [1.1.0] - 2026-08-15
 
 Maintenance release. No new operations — this moves the runtime off a version

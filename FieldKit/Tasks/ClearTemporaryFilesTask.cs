@@ -2,11 +2,17 @@ namespace FieldKit.Tasks;
 
 public sealed class ClearTemporaryFilesTask : MaintenanceTask
 {
+    /// <summary>
+    /// Entries changed more recently than this are left alone. A running installer
+    /// or an open app often has working files in temp that it still needs.
+    /// </summary>
+    internal static readonly TimeSpan MinimumAge = TimeSpan.FromHours(24);
+
     public ClearTemporaryFilesTask() : base(
-        "Clear Temporary Files",
-        "Removes common temp files to recover disk space. Files in use are skipped.",
-        "Cleanup",
-        "Quick")
+        "Clear temporary files",
+        "Removes temp files older than 24 hours. Files in use are left alone.",
+        "Clean up",
+        "Under 1 min")
     {
     }
 
@@ -22,12 +28,12 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")
             }
             .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => Path.GetFullPath(path!))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-            int targeted = 0;
-            int removed = 0;
-            int skipped = 0;
+            var cutoff = DateTime.Now - MinimumAge;
+            int removed = 0, inUse = 0, recent = 0, links = 0;
 
             foreach (var path in tempPaths)
             {
@@ -37,10 +43,7 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
 
                 foreach (var entry in EnumerateEntries(path))
                 {
-                    targeted++;
-                    if (dryRun)
-                        continue;
-
+                    ct.ThrowIfCancellationRequested();
                     try
                     {
                         var attrs = File.GetAttributes(entry);
@@ -49,11 +52,25 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
                         // a planted junction could redirect deletion to system directories.
                         if (attrs.HasFlag(FileAttributes.ReparsePoint))
                         {
-                            skipped++;
+                            links++;
                             continue;
                         }
 
-                        if (attrs.HasFlag(FileAttributes.Directory))
+                        var isDirectory = attrs.HasFlag(FileAttributes.Directory);
+                        var lastWrite = isDirectory ? Directory.GetLastWriteTime(entry) : File.GetLastWriteTime(entry);
+                        if (lastWrite > cutoff)
+                        {
+                            recent++;
+                            continue;
+                        }
+
+                        if (dryRun)
+                        {
+                            removed++;
+                            continue;
+                        }
+
+                        if (isDirectory)
                         {
                             Directory.Delete(entry, recursive: true);
                         }
@@ -66,24 +83,35 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
 
                         removed++;
                     }
-                    catch
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                     {
-                        skipped++;
+                        // Locked or protected: expected for anything a running program holds open.
+                        inUse++;
                     }
                 }
             }
 
-            if (dryRun)
-            {
-                Log($"Would target approximately {targeted} temp items.", "INFO");
-                return TaskResult.Ok($"{targeted} temp items identified");
-            }
+            Log($"{(dryRun ? "Would remove" : "Removed")} {removed} item(s). Left alone: {recent} newer than 24 hours, {inUse} in use, {links} link(s).",
+                "INFO");
 
-            Log($"Removed {removed} temp items. Skipped {skipped} locked or protected items.", skipped > 0 ? "WARN" : "OK");
-            return skipped > 0
-                ? TaskResult.Warn($"{removed} temp items removed, {skipped} skipped")
-                : TaskResult.Ok($"{removed} temp items removed");
+            return Summarize(dryRun, removed, inUse, recent);
         }, ct);
+    }
+
+    internal static TaskResult Summarize(bool dryRun, int removed, int inUse, int recent)
+    {
+        var kept = inUse + recent;
+        var keptNote = kept > 0 ? $", {kept} kept (recent or in use)" : "";
+
+        if (dryRun)
+            return TaskResult.Ok($"Would remove {removed} item(s){keptNote}");
+
+        // Files in use are normal. Only call it a warning when nothing at all
+        // could be removed and something was blocked.
+        if (removed == 0 && inUse > 0)
+            return TaskResult.Warn($"Nothing removed; {inUse} item(s) were in use");
+
+        return TaskResult.Ok($"Removed {removed} item(s){keptNote}");
     }
 
     private static IEnumerable<string> EnumerateEntries(string root)
@@ -91,13 +119,12 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
         IEnumerable<string> directories;
         IEnumerable<string> files;
 
-        try { directories = Directory.EnumerateDirectories(root, "*", SearchOption.TopDirectoryOnly); }
-        catch { directories = []; }
+        try { directories = Directory.EnumerateDirectories(root, "*", SearchOption.TopDirectoryOnly).ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { directories = []; }
 
-        try { files = Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly); }
-        catch { files = []; }
+        try { files = Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly).ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { files = []; }
 
-        foreach (var entry in directories.Concat(files))
-            yield return entry;
+        return directories.Concat(files);
     }
 }
