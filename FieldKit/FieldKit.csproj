@@ -7,10 +7,17 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- UI work only, Debug only: `dotnet run -p:FieldKitNoElevate=true` starts without
+         the elevation prompt. Maintenance steps that need admin rights will fail.
+         The Configuration condition means a Release build can never pick this up,
+         whether from a command line or a stray environment variable. -->
+    <ApplicationManifest Condition="'$(FieldKitNoElevate)' == 'true' and '$(Configuration)' == 'Debug'">app.dev.manifest</ApplicationManifest>
+    <!-- Keep the build machine's folder names out of the binary and its symbols. -->
+    <PathMap>$(MSBuildProjectDirectory)=/_/FieldKit</PathMap>
     <ApplicationIcon>fieldkit.ico</ApplicationIcon>
     <AssemblyName>FieldKit</AssemblyName>
     <RootNamespace>FieldKit</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>2.0.0-preview.1</Version>
     <Authors>Keith S. Crawford</Authors>
     <Product>FieldKit</Product>
     <Description>Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.</Description>
@@ -29,6 +36,11 @@
 
   <ItemGroup>
     <Resource Include="fieldkit.ico" />
+    <EmbeddedResource Include="Catalog\apps.json" LogicalName="FieldKit.Catalog.apps.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FieldKit.Tests" />
   </ItemGroup>
 
 </Project>

@@ -2,146 +2,119 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="FieldKit"
-        Width="1120" Height="740"
-        MinWidth="900" MinHeight="580"
+        Width="1120" Height="760"
+        MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Icon="fieldkit.ico">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid Background="{StaticResource Fk.Bg.Window}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="196"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <!-- TOOLBAR -->
-        <Border Grid.Row="0" Padding="16,10,16,10">
-            <StackPanel Orientation="Horizontal">
-                <Button x:Name="RunButton" Content="Run Selected"
-                        Click="RunButton_Click"
-                        Padding="20,8" FontWeight="SemiBold" FontSize="13"
-                        Margin="0,0,16,0"/>
-                <Button Content="Open Log" Click="OpenLogButton_Click"
-                        Padding="14,6" Margin="0,0,8,0"/>
-                <Button Content="System Info" Click="SystemInfoButton_Click"
-                        Padding="14,6"/>
-            </StackPanel>
+        <!-- NAVIGATION RAIL -->
+        <Border Grid.Column="0" Background="{StaticResource Fk.Bg.Rail}"
+                BorderBrush="{StaticResource Fk.Border}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="10,16,10,12">
+                <StackPanel DockPanel.Dock="Top" Margin="10,0,0,18">
+                    <TextBlock Text="FieldKit" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{StaticResource Fk.Text.Primary}"/>
+                    <TextBlock x:Name="VersionText" Style="{StaticResource Fk.Secondary}"
+                               Foreground="{StaticResource Fk.Text.Muted}"/>
+                </StackPanel>
+
+                <Button DockPanel.Dock="Bottom" Content="Open kit folder"
+                        Style="{StaticResource Fk.Button}" Click="OpenKitFolder_Click"/>
+
+                <StackPanel>
+                    <RadioButton x:Name="NavMaintain" Content="Maintain" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavApps" Content="Apps" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavKit" Content="Support kit" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavReports" Content="Reports" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
-        <!-- MAIN CONTENT -->
-        <Grid Grid.Row="1" Margin="12,4,12,4">
+        <!-- PAGE + ACTIVITY -->
+        <Grid Grid.Column="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="3*" MinHeight="200"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*" MinHeight="60"/>
+                <RowDefinition Height="*" MinHeight="260"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="150" MinHeight="70"/>
             </Grid.RowDefinitions>
 
-            <!-- TASK AREA -->
-            <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="5*" MinWidth="400"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="2*" MinWidth="220"/>
-                </Grid.ColumnDefinitions>
+            <Border x:Name="AccountNotice" Grid.Row="0" Style="{StaticResource Fk.Notice}"
+                    Margin="20,14,20,0" Visibility="Collapsed">
+                <TextBlock x:Name="AccountNoticeText" TextWrapping="Wrap" FontSize="12.5"/>
+            </Border>
 
-                <!-- OPERATIONS -->
-                <Grid Grid.Column="0" Margin="0,0,6,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+            <ContentControl x:Name="PageHost" Grid.Row="1" Margin="20,16,20,10" Focusable="False"/>
 
-                    <!-- Presets -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="All" Click="PresetAll_Click" Padding="14,5" Margin="0,0,6,0"/>
-                        <Button Content="Cleanup" Click="PresetCleanup_Click" Padding="14,5" Margin="0,0,6,0"/>
-                        <Button Content="Updates" Click="PresetUpdates_Click" Padding="14,5" Margin="0,0,6,0"/>
-                        <Button Content="Health" Click="PresetHealth_Click" Padding="14,5" Margin="0,0,6,0"/>
-                        <Button Content="Defaults" Click="PresetDefaults_Click" Padding="14,5"/>
-                    </StackPanel>
+            <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"
+                          Background="{StaticResource Fk.Border}" ResizeDirection="Rows"/>
 
-                    <!-- Task DataGrid -->
-                    <DataGrid x:Name="TaskGrid" Grid.Row="1"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="False"
-                              CanUserReorderColumns="False"
-                              IsReadOnly="False"
-                              SelectionMode="Single"
-                              SelectionChanged="TaskGrid_SelectionChanged"
-                              HeadersVisibility="Column"
-                              GridLinesVisibility="None"
-                              BorderThickness="0"
-                              VerticalScrollBarVisibility="Auto">
-                        <DataGrid.Columns>
-                            <DataGridCheckBoxColumn Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Header="" Width="40"/>
-                            <DataGridTextColumn Binding="{Binding Name}" Header="Operation" Width="*" IsReadOnly="True"/>
-                            <DataGridTextColumn Binding="{Binding Category}" Header="Area" Width="120" IsReadOnly="True"/>
-                            <DataGridTextColumn Binding="{Binding EstimatedTime}" Header="Time" Width="80" IsReadOnly="True"/>
-                            <DataGridTextColumn Binding="{Binding TypeLabel}" Header="Type" Width="80" IsReadOnly="True"/>
-                            <DataGridTextColumn Binding="{Binding Status}" Header="Status" Width="80" IsReadOnly="True"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-
-                <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
-                              VerticalAlignment="Stretch" Background="Transparent"/>
-
-                <!-- DETAILS -->
-                <Grid Grid.Column="2" Margin="6,0,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Details"
-                               FontSize="16" FontWeight="SemiBold"
-                               Margin="0,0,0,10"/>
-                    <TextBox x:Name="DetailsBox" Grid.Row="1"
-                             IsReadOnly="True" TextWrapping="Wrap"
-                             Background="Transparent" BorderThickness="0"
-                             VerticalScrollBarVisibility="Auto"
-                             FontSize="13"
-                             Text="Select an operation to see details."/>
-                </Grid>
-            </Grid>
-
-            <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center" Background="Transparent" Margin="0,4"/>
-
-            <!-- LOG -->
-            <Grid Grid.Row="2">
+            <!-- ACTIVITY LOG: shared by every page -->
+            <Grid Grid.Row="3" Background="{StaticResource Fk.Bg.Log}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="Log" FontSize="13" FontWeight="SemiBold"
-                           Opacity="0.5" Margin="0,0,0,4"/>
-                <TextBox x:Name="LogBox" Grid.Row="1"
-                         IsReadOnly="True" TextWrapping="NoWrap"
+                <DockPanel Grid.Row="0" Margin="20,8,20,4">
+                    <Button DockPanel.Dock="Right" Content="Open log" Padding="10,3" MinHeight="24"
+                            FontSize="12" Style="{StaticResource Fk.Button}" Click="OpenLog_Click"/>
+                    <TextBlock Text="Activity" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="{StaticResource Fk.Text.Muted}"/>
+                    <TextBlock x:Name="BusyText" Style="{StaticResource Fk.Secondary}"
+                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </DockPanel>
+                <ListBox x:Name="LogList" Grid.Row="1" Margin="14,0,6,6"
                          Background="Transparent" BorderThickness="0"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"
-                         FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                         Text="Output will appear here when operations run."
-                         Opacity="0.4"/>
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.ScrollChanged="LogList_ScrollChanged"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <ContentPresenter Margin="6,0"/>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock x:Name="Line" Text="{Binding Text}" FontSize="12"
+                                       FontFamily="{StaticResource Fk.Font.Mono}"
+                                       Foreground="{StaticResource Fk.Text.Secondary}"/>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Level}" Value="OK">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Fk.Ok.Text}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="WARN">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Fk.Warn.Text}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="ERROR">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Fk.Error.Text}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock x:Name="LogPlaceholder" Grid.Row="1" Margin="20,4,0,0"
+                           Text="Output appears here when something runs."
+                           Style="{StaticResource Fk.Secondary}"
+                           Foreground="{StaticResource Fk.Text.Muted}"/>
             </Grid>
         </Grid>
-
-        <!-- STATUS BAR -->
-        <Border Grid.Row="2" Padding="16,6,16,6">
-            <DockPanel>
-                <TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center"
-                           DockPanel.Dock="Left"/>
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
-                            HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock x:Name="SelectedText" Text="Selected: 0"
-                               Opacity="0.6" Margin="0,0,20,0"/>
-                    <ProgressBar x:Name="ProgressBar" Width="140" Height="12"
-                                 Minimum="0" Maximum="100" Value="0"
-                                 VerticalAlignment="Center"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
     </Grid>
 </Window>

@@ -2,11 +2,14 @@ namespace FieldKit.Tasks;
 
 public sealed class CreateRestorePointTask : MaintenanceTask
 {
+    internal const string CreatedMarker = "FIELDKIT_RESTORE_CREATED";
+    internal const string SkippedMarker = "FIELDKIT_RESTORE_SKIPPED";
+
     public CreateRestorePointTask() : base(
-        "Create Restore Point",
+        "Create restore point",
         "Creates a system restore point before other changes run.",
-        "Preparation",
-        "Quick")
+        "Prepare",
+        "Under 1 min")
     {
     }
 
@@ -14,27 +17,42 @@ public sealed class CreateRestorePointTask : MaintenanceTask
     {
         if (dryRun)
         {
-            Log("Would enable System Restore on C: and create a restore point.", "INFO");
-            return TaskResult.Ok("Previewed restore point creation");
+            Log("Would enable System Restore on the system drive and create a restore point.", "INFO");
+            return TaskResult.Ok("Would create a restore point");
         }
 
-        var description = $"Pre-Maintenance {DateTime.Now:yyyy-MM-dd}";
-        var command = "$ErrorActionPreference='Stop'; " +
-                      "Enable-ComputerRestore -Drive 'C:\\'; " +
-                      $"Checkpoint-Computer -Description '{description}' -RestorePointType MODIFY_SETTINGS";
+        // Invariant culture: the text goes inside a quoted PowerShell string, and a
+        // customised regional time separator must not be able to change it.
+        var description = "FieldKit " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
-        var result = await RunPowerShellAsync(command, ct, line => !string.IsNullOrWhiteSpace(line));
-        if (result.ExitCode == 0)
-            return TaskResult.Ok($"Restore point created: {description}");
+        // Checkpoint-Computer exits 0 without creating anything when Windows made a
+        // restore point in the last 24 hours. Comparing the newest sequence number
+        // before and after is the only reliable way to tell which happened.
+        var script =
+            "$ErrorActionPreference='Stop'; " +
+            "Enable-ComputerRestore -Drive \"$env:SystemDrive\\\"; " +
+            "$before = (Get-ComputerRestorePoint | Measure-Object -Property SequenceNumber -Maximum).Maximum; " +
+            $"Checkpoint-Computer -Description '{description}' -RestorePointType MODIFY_SETTINGS -WarningAction SilentlyContinue; " +
+            "$after = (Get-ComputerRestorePoint | Measure-Object -Property SequenceNumber -Maximum).Maximum; " +
+            $"if ($after -gt $before) {{ '{CreatedMarker}' }} else {{ '{SkippedMarker}' }}";
 
-        var combined = string.Join(" ", result.AllLines);
-        if (combined.Contains("0x81000101", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("per day", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("24", StringComparison.OrdinalIgnoreCase))
-        {
-            return TaskResult.Warn("Windows already created a restore point recently");
-        }
+        var result = await RunPowerShellAsync(script, ct, line =>
+            !string.IsNullOrWhiteSpace(line) && !line.StartsWith("FIELDKIT_", StringComparison.Ordinal));
 
-        return TaskResult.Warn("Restore point could not be created automatically");
+        return Interpret(result.ExitCode, result.Output, description);
+    }
+
+    internal static TaskResult Interpret(int exitCode, IReadOnlyList<string> output, string description)
+    {
+        if (exitCode != 0)
+            return TaskResult.Warn("Restore point could not be created. System Restore may be turned off by policy.");
+
+        if (output.Any(line => line.Trim() == CreatedMarker))
+            return TaskResult.Ok($"Created \"{description}\"");
+
+        if (output.Any(line => line.Trim() == SkippedMarker))
+            return TaskResult.Ok("Windows skipped it: a restore point from the last 24 hours already exists");
+
+        return TaskResult.Warn("Restore point command finished but did not report a result");
     }
 }

@@ -13,8 +13,7 @@ public partial class DisclaimerWindow : Window
 
     public static bool HasAccepted()
     {
-        try { return File.Exists(AcceptancePath); }
-        catch { return false; }
+        return File.Exists(AcceptancePath);
     }
 
     private static void RecordAcceptance()
@@ -25,12 +24,16 @@ public partial class DisclaimerWindow : Window
             Directory.CreateDirectory(dir);
             File.WriteAllText(AcceptancePath, $"Accepted: {DateTime.Now:O}");
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Not recorded: the agreement is shown again next launch.
+        }
     }
 
     public DisclaimerWindow()
     {
         InitializeComponent();
+        VersionTitle.Text = $"FieldKit {Services.SystemInfo.GetDisplayVersion()}";
     }
 
     private void Agree_Click(object sender, RoutedEventArgs e)

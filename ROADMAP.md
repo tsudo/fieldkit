@@ -38,6 +38,10 @@ Why:
 
 Add a workflow for installing or updating a core app set.
 
+Current progress:
+
+- shipped in the 2.0 preview as the Apps page: a curated winget catalog with bundles, installed and update state per app, one confirmation, and a result per package
+
 Candidate features:
 
 - create a Ninite URL or bundle for common app installs
@@ -55,6 +59,12 @@ Why:
 
 Make outcome reporting more visual and easier to scan.
 
+Current progress:
+
+- each run writes a starting manifest and a completion summary to the log
+- every row shows its own result, and the Reports page keeps a history of runs
+- command output that reports installer failures, access-denied errors, in-use files, or blocked upgrades is promoted to warning severity
+
 Candidate improvements:
 
 - show last run results in dashboard cards
@@ -65,6 +75,10 @@ Candidate improvements:
 ### 4. Diagnostics Export
 
 Make it easier to hand results to another person.
+
+Current progress:
+
+- shipped in the 2.0 preview as the Support kit page: snapshot reports, Sysinternals tools downloaded from Microsoft, and a zip of reports and logs for sharing
 
 Candidate improvements:
 
@@ -99,14 +113,14 @@ That means the user experience should answer:
 
 ## UI Direction
 
-v1.0 migrated from WinForms to WPF with a Fluent dark theme. v1.1 moved the runtime to .NET 10 (LTS).
+v1.0 migrated from WinForms to WPF with a Fluent dark theme. v1.1 moved the runtime to .NET 10 (LTS). 2.0 replaces the single grid with a navigation rail and four pages.
 
 Current state:
 
-- DataGrid-based task list with checkbox selection
-- Resizable split panels (operations / details / log)
-- Fluent dark mode with system-native controls
-- Streamlined toolbar (Run Selected, Open Log, System Info)
+- Maintain, Apps, Support kit and Reports pages behind a left navigation rail
+- grouped checklists with a status pill and result on every row
+- one theme file for every colour and control style
+- an activity log shared by all pages
 
 Future UI goals:
 

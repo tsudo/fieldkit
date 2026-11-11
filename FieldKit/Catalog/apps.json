@@ -1,0 +1,38 @@
+{
+  "apps": [
+    { "id": "Mozilla.Firefox", "name": "Firefox", "group": "Browser", "note": "Privacy-first browser", "bundles": ["essentials", "picks"] },
+
+    { "id": "Bitwarden.Bitwarden", "name": "Bitwarden", "group": "Passwords and sign-in", "note": "Free, open-source password manager", "bundles": ["essentials", "picks"] },
+    { "id": "AgileBits.1Password", "name": "1Password", "group": "Passwords and sign-in", "note": "Paid password manager", "bundles": ["picks"] },
+    { "id": "Yubico.Authenticator", "name": "Yubico Authenticator", "group": "Passwords and sign-in", "note": "Companion app for a YubiKey", "bundles": [] },
+
+    { "id": "MullvadVPN.MullvadVPN", "name": "Mullvad VPN", "group": "Privacy and network", "note": "No-account privacy VPN", "bundles": ["picks"] },
+    { "id": "Cloudflare.Warp", "name": "Cloudflare WARP", "group": "Privacy and network", "note": "Encrypted DNS with 1.1.1.1", "bundles": ["picks"] },
+
+    { "id": "OpenWhisperSystems.Signal", "name": "Signal", "group": "Messengers", "note": "End-to-end encrypted messaging", "bundles": ["picks"] },
+
+    { "id": "Obsidian.Obsidian", "name": "Obsidian", "group": "Productivity", "note": "Local-first markdown notes", "bundles": ["picks"] },
+    { "id": "Doist.Todoist", "name": "Todoist", "group": "Productivity", "note": "Task manager", "bundles": ["picks"] },
+    { "id": "Proton.ProtonMail", "name": "Proton Mail", "group": "Productivity", "note": "Encrypted email", "bundles": ["picks"] },
+    { "id": "Proton.ProtonDrive", "name": "Proton Drive", "group": "Productivity", "note": "Encrypted cloud storage", "bundles": ["picks"] },
+
+    { "id": "7zip.7zip", "name": "7-Zip", "group": "Utilities", "note": "Archive tool", "bundles": ["essentials"] },
+    { "id": "Notepad++.Notepad++", "name": "Notepad++", "group": "Utilities", "note": "Text editor", "bundles": ["essentials"] },
+    { "id": "VideoLAN.VLC", "name": "VLC", "group": "Utilities", "note": "Plays almost any media file", "bundles": ["essentials"] },
+    { "id": "SumatraPDF.SumatraPDF", "name": "SumatraPDF", "group": "Utilities", "note": "Small, fast PDF reader", "bundles": [] },
+    { "id": "voidtools.Everything", "name": "Everything", "group": "Utilities", "note": "Instant file search", "bundles": [] },
+    { "id": "PatchMyPC.PatchMyPC", "name": "PatchMyPC Home Updater", "group": "Utilities", "note": "Keeps common apps patched", "bundles": [] }
+  ],
+  "bundles": [
+    { "key": "essentials", "name": "Essentials" },
+    { "key": "picks", "name": "Keith's picks" }
+  ],
+  "links": [
+    { "name": "uBlock Origin for Firefox", "url": "https://addons.mozilla.org/firefox/addon/ublock-origin/", "note": "Ad and tracker blocker" },
+    { "name": "Privacy Badger for Firefox", "url": "https://addons.mozilla.org/firefox/addon/privacy-badger17/", "note": "Learns and blocks trackers" },
+    { "name": "LocalCDN for Firefox", "url": "https://addons.mozilla.org/firefox/addon/localcdn-fork-of-decentraleyes/", "note": "Serves common libraries locally" },
+    { "name": "WhatsApp", "url": "ms-windows-store://pdp/?ProductId=9NKSQGP7F2NH", "note": "Microsoft Store only" },
+    { "name": "Backblaze", "url": "https://www.backblaze.com/cloud-backup/personal", "note": "Installer is tied to your account" },
+    { "name": "Sophos Home", "url": "https://home.sophos.com/", "note": "Installer is tied to your account" }
+  ]
+}

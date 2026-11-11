@@ -5,10 +5,10 @@ namespace FieldKit.Tasks;
 public class StorageSenseTask : MaintenanceTask
 {
     public StorageSenseTask() : base(
-        "Turn On Auto-Cleanup",
+        "Turn on auto-cleanup",
         "Enables Windows Storage Sense so Windows can clean temp files and old Recycle Bin content on a schedule.",
-        "Cleanup",
-        "Quick") { }
+        "Clean up",
+        "Under 1 min") { }
 
     private const string RegPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy";
 
@@ -18,9 +18,12 @@ public class StorageSenseTask : MaintenanceTask
         {
             using var key = Registry.CurrentUser.OpenSubKey(RegPath);
             var val = key?.GetValue("01");
-            ContextInfo = val is int i && i == 1 ? "Currently enabled" : "Currently disabled";
+            ContextInfo = val is int i && i == 1 ? "Currently on" : "Currently off";
         }
-        catch { }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            ContextInfo = null;
+        }
     }, ct);
 
     public override async Task<TaskResult> ExecuteAsync(bool dryRun, CancellationToken ct)
@@ -32,7 +35,7 @@ public class StorageSenseTask : MaintenanceTask
             if (dryRun)
             {
                 Log("[DryRun] Would configure Storage Sense (enabled, monthly, 30-day thresholds)", "INFO");
-                return TaskResult.Ok("Dry run");
+                return TaskResult.Ok("Would turn on Storage Sense");
             }
 
             try

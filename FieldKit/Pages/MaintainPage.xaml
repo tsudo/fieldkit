@@ -1,0 +1,66 @@
+<UserControl x:Class="FieldKit.Pages.MaintainPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Maintain" Style="{StaticResource Fk.PageTitle}"/>
+            <TextBlock Text="Pick a preset or tick individual steps. Steps run top to bottom."
+                       Style="{StaticResource Fk.PageSubtitle}"/>
+        </StackPanel>
+
+        <StackPanel x:Name="PresetBar" Grid.Row="1" Orientation="Horizontal">
+            <RadioButton x:Name="PresetQuick" Content="Quick tune-up" GroupName="MaintainPreset"
+                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
+            <RadioButton x:Name="PresetCleanup" Content="Cleanup" GroupName="MaintainPreset"
+                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
+            <RadioButton x:Name="PresetUpdates" Content="Updates" GroupName="MaintainPreset"
+                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
+            <RadioButton x:Name="PresetRepair" Content="Deep repair" GroupName="MaintainPreset"
+                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
+            <RadioButton x:Name="PresetAll" Content="Everything" GroupName="MaintainPreset"
+                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
+        </StackPanel>
+
+        <Border x:Name="SummaryCard" Grid.Row="2" Style="{StaticResource Fk.Card}"
+                Margin="0,12,0,0" Visibility="Collapsed">
+            <DockPanel>
+                <Border x:Name="SummaryPill" DockPanel.Dock="Right" Style="{StaticResource Fk.Pill}">
+                    <TextBlock x:Name="SummaryPillText"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock x:Name="SummaryTitle" FontSize="13.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource Fk.Text.Primary}"/>
+                    <TextBlock x:Name="SummaryDetail" Style="{StaticResource Fk.RowDetail}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="0,2,0,0">
+            <ItemsControl x:Name="GroupList" ItemTemplate="{StaticResource Fk.GroupTemplate}"
+                          Focusable="False" Margin="0,0,10,0"/>
+        </ScrollViewer>
+
+        <Border Grid.Row="4" Style="{StaticResource Fk.ActionBar}">
+            <DockPanel>
+                <Button x:Name="RunButton" Content="Run" Style="{StaticResource Fk.Button.Primary}"
+                        MinWidth="130" Click="Run_Click"/>
+                <Button x:Name="StopButton" Content="Stop" Style="{StaticResource Fk.Button}"
+                        Margin="8,0,0,0" Visibility="Collapsed" Click="Stop_Click"/>
+                <CheckBox x:Name="PreviewCheck" Content="Preview only" Margin="16,0,0,0"
+                          VerticalAlignment="Center"
+                          ToolTip="Reports what each step would do without changing anything."
+                          Checked="Preview_Changed" Unchecked="Preview_Changed"/>
+                <TextBlock x:Name="StatusText" Style="{StaticResource Fk.Secondary}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

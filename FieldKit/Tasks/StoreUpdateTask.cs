@@ -5,10 +5,10 @@ namespace FieldKit.Tasks;
 public class StoreUpdateTask : MaintenanceTask
 {
     public StoreUpdateTask() : base(
-        "Update Store Apps",
+        "Microsoft Store apps",
         "Triggers a Microsoft Store update scan when the required Windows management interface is available.",
-        "Updates",
-        "Quick",
+        "Update",
+        "Under 1 min",
         requiresInternet: true) { }
 
     public override async Task<TaskResult> ExecuteAsync(bool dryRun, CancellationToken ct)
@@ -18,7 +18,7 @@ public class StoreUpdateTask : MaintenanceTask
             if (dryRun)
             {
                 Log("[DryRun] Would invoke MDM Store update scan", "INFO");
-                return TaskResult.Ok("Dry run");
+                return TaskResult.Ok("Would ask the Store to check for updates");
             }
 
             try
@@ -35,9 +35,14 @@ public class StoreUpdateTask : MaintenanceTask
                 {
                     var result = obj.InvokeMethod("UpdateScanMethod", null, null);
                     var retVal = result?["ReturnValue"];
+                    if (retVal is not null && Convert.ToInt64(retVal) != 0)
+                    {
+                        Log($"Store update scan was refused (return value: {retVal}).", "WARN");
+                        return TaskResult.Warn($"The Store did not accept the request (code {retVal}). Open Store > Library > Get updates.");
+                    }
                     Log($"Store update scan triggered (return value: {retVal}).", "OK");
                     Log("  Updates install in the background. Open the Store to verify.", "INFO");
-                    return TaskResult.Ok("Store update scan started");
+                    return TaskResult.Ok("Store update scan triggered; installation continues in the background");
                 }
 
                 Log("MDM class found but no instances returned.", "WARN");

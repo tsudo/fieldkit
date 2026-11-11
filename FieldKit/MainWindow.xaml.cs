@@ -1,318 +1,217 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using FieldKit.Pages;
 using FieldKit.Services;
 using FieldKit.Tasks;
 
 namespace FieldKit;
 
+/// <summary>A page hosted by the shell. <see cref="OnShown"/> runs each time it becomes visible.</summary>
+public interface IPage
+{
+    void OnShown();
+}
+
+public sealed record LogLine(string Text, string Level);
+
 public partial class MainWindow : Window
 {
-    private readonly IReadOnlyList<MaintenanceTask> _tasks;
-    private readonly Logger _logger;
-    private readonly ObservableCollection<TaskViewModel> _taskViewModels = new();
-    private CancellationTokenSource? _runCts;
+    private const int MaxLogLines = 4000;
 
-    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger)
+    private readonly Logger _logger;
+    private readonly ObservableCollection<LogLine> _logLines = new();
+    private readonly Dictionary<RadioButton, Func<UserControl>> _pageFactories;
+    private readonly Dictionary<RadioButton, UserControl> _pages = new();
+
+    public MainWindow(IReadOnlyList<MaintenanceTask> tasks, Logger logger, string? startPage = null)
     {
         InitializeComponent();
-        _tasks = tasks;
         _logger = logger;
 
-        foreach (var task in _tasks)
-            _taskViewModels.Add(new TaskViewModel(task));
+        VersionText.Text = $"Version {SystemInfo.GetDisplayVersion()}";
+        LogList.ItemsSource = _logLines;
 
-        TaskGrid.ItemsSource = _taskViewModels;
+        _pageFactories = new Dictionary<RadioButton, Func<UserControl>>
+        {
+            [NavMaintain] = () => new MaintainPage(tasks, logger),
+            [NavApps] = () => new AppsPage(logger),
+            [NavKit] = () => new SupportKitPage(logger),
+            [NavReports] = () => new ReportsPage(logger)
+        };
+
         _logger.LogWritten += OnLogWritten;
-
-        Loaded += async (_, _) => await LoadContextAsync();
+        RunLock.Changed += OnRunLockChanged;
+        Closing += OnClosing;
         Closed += (_, _) =>
         {
             _logger.LogWritten -= OnLogWritten;
-            // Cancel, don't dispose — the run loop is still reading this token
-            // and owns disposal in its finally. Disposing here made every
-            // remaining operation fail with ObjectDisposedException.
-            _runCts?.Cancel();
+            RunLock.Changed -= OnRunLockChanged;
         };
 
-        UpdateSummary();
-    }
-
-    private async Task LoadContextAsync()
-    {
-        foreach (var vm in _taskViewModels)
+        if (Shell.RunsAsDifferentUser(out var interactive, out var current))
         {
-            try { await vm.Task.GatherContextAsync(); }
-            catch (Exception ex) { _logger.Log($"[{vm.Name}] Context probe failed: {ex.Message}", "WARN"); }
+            AccountNoticeText.Text =
+                $"FieldKit is running as {current}, but {interactive} is signed in. " +
+                "Per-user steps (temp files, Recycle Bin, Storage Sense, winget apps) act on the administrator's profile, not theirs.";
+            AccountNotice.Visibility = Visibility.Visible;
+            _logger.Log($"Running as {current}; interactive user is {interactive}.", "WARN");
         }
-        RefreshDetails();
+
+        if (AppPaths.IsTemporaryRoot)
+        {
+            var existing = AccountNotice.Visibility == Visibility.Visible
+                ? AccountNoticeText.Text + Environment.NewLine + Environment.NewLine
+                : "";
+            AccountNoticeText.Text = existing +
+                $"FieldKit could not create its usual folder on the system drive, so this session keeps logs, reports and tools in {AppPaths.Root}. " +
+                "They will not be there next time. Check for a folder named FieldKit at the drive root that FieldKit did not create.";
+            AccountNotice.Visibility = Visibility.Visible;
+            _logger.Log($"Using temporary kit folder {AppPaths.Root}.", "WARN");
+        }
+
+        // `FieldKit.exe --page apps` opens straight on a page; anything else opens Maintain.
+        var start = startPage?.ToLowerInvariant() switch
+        {
+            "apps" => NavApps,
+            "kit" => NavKit,
+            "reports" => NavReports,
+            _ => NavMaintain
+        };
+        start.IsChecked = true;
     }
 
-    // ================================================================
-    // TOOLBAR HANDLERS
-    // ================================================================
-
-    private async void RunButton_Click(object sender, RoutedEventArgs e) => await RunSelectedTasksAsync();
-
-    private void OpenLogButton_Click(object sender, RoutedEventArgs e)
+    private void Nav_Checked(object sender, RoutedEventArgs e)
     {
-        try
+        if (sender is not RadioButton nav || !_pageFactories.TryGetValue(nav, out var factory))
+            return;
+
+        if (!_pages.TryGetValue(nav, out var page))
         {
-            if (!File.Exists(_logger.LogFilePath))
+            page = factory();
+            _pages[nav] = page;
+        }
+
+        PageHost.Content = page;
+        (page as IPage)?.OnShown();
+    }
+
+    private void OnRunLockChanged()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_closeWhenIdle && !RunLock.IsBusy)
             {
-                MessageBox.Show(this, "No log file has been created yet.", "Open Log",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Close();
                 return;
             }
-            Process.Start(new ProcessStartInfo { FileName = _logger.LogFilePath, UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, $"Could not open the log file: {ex.Message}", "Open Log",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void SystemInfoButton_Click(object sender, RoutedEventArgs e)
-    {
-        var win = new SystemInfoWindow { Owner = this };
-        win.ShowDialog();
-    }
-
-    // ================================================================
-    // PRESETS
-    // ================================================================
-
-    private void PresetAll_Click(object sender, RoutedEventArgs e) => ApplyPreset(_ => true);
-    private void PresetCleanup_Click(object sender, RoutedEventArgs e) =>
-        ApplyPreset(vm => vm.Category is "Preparation" or "Cleanup");
-    private void PresetUpdates_Click(object sender, RoutedEventArgs e) =>
-        ApplyPreset(vm => vm.Category == "Updates");
-    private void PresetHealth_Click(object sender, RoutedEventArgs e) =>
-        ApplyPreset(vm => vm.Category is "Preparation" or "Repair & Optimize");
-    private void PresetDefaults_Click(object sender, RoutedEventArgs e) =>
-        ApplyPreset(vm => vm.Task.SelectedByDefault);
-
-    private void ApplyPreset(Func<TaskViewModel, bool> predicate)
-    {
-        foreach (var vm in _taskViewModels)
-            vm.IsSelected = predicate(vm);
-        UpdateSummary();
-    }
-
-    // ================================================================
-    // TASK SELECTION
-    // ================================================================
-
-    private void TaskGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshDetails();
-
-    private void RefreshDetails()
-    {
-        var vm = TaskGrid.SelectedItem as TaskViewModel;
-        if (vm is null)
-        {
-            DetailsBox.Text = "Select an operation to see details.";
-            return;
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine(vm.Name);
-        sb.AppendLine();
-        sb.AppendLine(vm.Task.Description);
-        sb.AppendLine();
-        sb.AppendLine($"Area:      {vm.Category}");
-        sb.AppendLine($"Time:      {vm.EstimatedTime}");
-        sb.AppendLine($"Status:    {vm.Status}");
-        sb.AppendLine($"Type:      {vm.TypeLabel}");
-        if (vm.Task.RequiresInternet)
-            sb.AppendLine("Internet:  Required");
-        if (vm.Task.MayRequireReboot)
-            sb.AppendLine("Reboot:    May be needed");
-        if (!string.IsNullOrWhiteSpace(vm.Task.ContextInfo))
-        {
-            sb.AppendLine();
-            sb.AppendLine(vm.Task.ContextInfo);
-        }
-
-        DetailsBox.Text = sb.ToString();
-    }
-
-    private void UpdateSummary()
-    {
-        var selected = _taskViewModels.Count(vm => vm.IsSelected);
-        var advanced = _taskViewModels.Count(vm => vm.IsSelected && vm.Task.IsAdvanced);
-
-        SelectedText.Text = $"Selected: {selected}" + (advanced > 0 ? $" ({advanced} advanced)" : "");
-    }
-
-    // ================================================================
-    // RUN ENGINE
-    // ================================================================
-
-    private async Task RunSelectedTasksAsync()
-    {
-        if (_runCts is not null) return;
-
-        var selected = _taskViewModels.Where(vm => vm.IsSelected).ToList();
-        if (selected.Count == 0)
-        {
-            MessageBox.Show(this, "Select at least one operation before running.",
-                "Nothing Selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        ClearLogPlaceholder();
-        _runCts = new CancellationTokenSource();
-        var dryRun = false;
-        var startFree = TryGetSystemDriveFreeSpace();
-        var rebootRecommended = false;
-        int success = 0, warning = 0, error = 0, skipped = 0;
-
-        SetRunningState(true);
-        _logger.Log($"Run started. Preview: {(dryRun ? "ON" : "OFF")}. Log: {_logger.LogFilePath}", "INFO");
-
-        var completed = false;
-        try
-        {
-            for (int i = 0; i < selected.Count; i++)
-            {
-                var vm = selected[i];
-                StatusText.Text = $"Running {vm.Name} ({i + 1}/{selected.Count})";
-                ProgressBar.Value = (double)i / selected.Count * 100;
-                vm.Status = "Running";
-                RefreshDetails();
-
-                TaskResult result;
-                try { result = await vm.Task.ExecuteAsync(dryRun, _runCts.Token); }
-                catch (OperationCanceledException) { result = TaskResult.Skipped("Cancelled"); }
-                catch (Exception ex)
-                {
-                    _logger.Log($"[{vm.Name}] Unhandled failure: {ex.Message}", "ERROR");
-                    result = TaskResult.Fail(ex.Message);
-                }
-
-                rebootRecommended |= result.RebootRecommended;
-                switch (result.State)
-                {
-                    case TaskResultState.Success: success++; vm.Status = "Success"; break;
-                    case TaskResultState.Warning: warning++; vm.Status = "Warning"; break;
-                    case TaskResultState.Skipped: skipped++; vm.Status = "Skipped"; break;
-                    default: error++; vm.Status = "Error"; break;
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.Summary))
-                    _logger.Log($"[{vm.Name}] {result.Summary}", result.State switch
-                    {
-                        TaskResultState.Success => "OK",
-                        TaskResultState.Warning => "WARN",
-                        TaskResultState.Skipped => "WARN",
-                        _ => "ERROR"
-                    });
-
-                RefreshDetails();
-            }
-
-            completed = true;
-        }
-        catch (Exception ex)
-        {
-            // The run owns its own failure. Letting this reach the global
-            // dispatcher handler would leave the status bar reading
-            // "Run complete" on a run that stopped halfway through.
-            _logger.Log($"Run aborted: {ex}", "ERROR");
-
-            foreach (var vm in selected.Where(vm => vm.Status == "Running"))
-                vm.Status = "Aborted";
-
-            MessageBox.Show(this,
-                $"The run stopped early and did not finish.\n\n{ex.Message}\n\nLog: {_logger.LogFilePath}",
-                "FieldKit — Run Aborted", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            ProgressBar.Value = completed ? 100 : 0;
-            StatusText.Text = completed ? "Run complete" : "Run aborted";
-            SetRunningState(false);
-            _runCts.Dispose();
-            _runCts = null;
-            RefreshDetails();
-        }
-
-        if (completed)
-            ShowCompletionSummary(dryRun, success, warning, error, skipped,
-                startFree, TryGetSystemDriveFreeSpace(), rebootRecommended);
-    }
-
-    private void ShowCompletionSummary(bool dryRun, int success, int warning, int error, int skipped,
-        double? startFree, double? endFree, bool rebootRecommended)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine(dryRun ? "Preview complete." : "Run complete.");
-        sb.AppendLine();
-        sb.AppendLine($"Successful: {success}");
-        sb.AppendLine($"Warnings: {warning}");
-        sb.AppendLine($"Errors: {error}");
-        if (skipped > 0) sb.AppendLine($"Skipped: {skipped}");
-
-        if (startFree.HasValue && endFree.HasValue)
-        {
-            var delta = Math.Round(endFree.Value - startFree.Value, 2);
-            sb.AppendLine();
-            sb.AppendLine($"System drive: {startFree.Value:F2} GB \u2192 {endFree.Value:F2} GB ({delta:+0.00;-0.00;0.00} GB)");
-        }
-
-        if (rebootRecommended)
-        {
-            sb.AppendLine();
-            sb.AppendLine("A reboot is recommended before relying on repair results.");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine($"Log: {_logger.LogFilePath}");
-
-        MessageBox.Show(this, sb.ToString(), "FieldKit",
-            MessageBoxButton.OK, warning > 0 || error > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
-    }
-
-    private void SetRunningState(bool running)
-    {
-        RunButton.IsEnabled = !running;
-        TaskGrid.IsEnabled = !running;
-    }
-
-    // ================================================================
-    // LOG
-    // ================================================================
-
-    private void OnLogWritten(string message, string level)
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            ClearLogPlaceholder();
-            LogBox.AppendText(message + Environment.NewLine);
-            LogBox.ScrollToEnd();
+            if (!_closeWhenIdle)
+                BusyText.Text = RunLock.IsBusy ? $"{RunLock.Owner} is running" : "";
         });
     }
 
-    private void ClearLogPlaceholder()
+    private bool _closeWhenIdle;
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (LogBox.Opacity < 1.0)
+        if (!RunLock.IsBusy) return;
+
+        // Never let the window go while a job holds the lock: the process would
+        // exit, the child (DISM, an installer) would keep running with nobody
+        // watching, and the run would leave no summary.
+        e.Cancel = true;
+        if (_closeWhenIdle) return;
+
+        var answer = MessageBox.Show(this,
+            $"{RunLock.Owner} is still running.\n\nStop it and close FieldKit? The current step is ended partway through; " +
+            "FieldKit closes as soon as it has stopped and written its summary.",
+            "FieldKit", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+
+        // The job may have finished while the question was on screen.
+        if (!RunLock.IsBusy)
         {
-            LogBox.Text = "";
-            LogBox.Opacity = 1.0;
+            e.Cancel = false;
+            return;
         }
+
+        _closeWhenIdle = true;
+        BusyText.Text = $"Stopping {RunLock.Owner}, then closing";
+        RunLock.RequestStop();
     }
 
-    private static double? TryGetSystemDriveFreeSpace()
+    private void OpenKitFolder_Click(object sender, RoutedEventArgs e) => Shell.Open(AppPaths.Root, _logger);
+
+    private void OpenLog_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (!File.Exists(_logger.LogFilePath))
         {
-            var root = Path.GetPathRoot(Environment.SystemDirectory);
-            if (string.IsNullOrWhiteSpace(root)) return null;
-            return new DriveInfo(root).AvailableFreeSpace / 1024d / 1024d / 1024d;
+            MessageBox.Show(this,
+                $"FieldKit could not create a log file this session.\n\nExpected at: {_logger.LogFilePath}",
+                "Open log", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
-        catch { return null; }
+
+        Shell.Open(_logger.LogFilePath, _logger);
+    }
+
+    // ================================================================
+    // ACTIVITY LOG
+    // ================================================================
+
+    private void OnLogWritten(string entry, string level)
+    {
+        if (IsProgressNoise(entry)) return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            LogPlaceholder.Visibility = Visibility.Collapsed;
+            _logLines.Add(new LogLine(entry, level));
+            while (_logLines.Count > MaxLogLines)
+                _logLines.RemoveAt(0);
+
+            // Follow new output only while the view is already at the end, so
+            // scrolling up to read something is not undone by the next line.
+            if (_followLog)
+                LogList.ScrollIntoView(_logLines[^1]);
+
+            if (_logger.WriteFailed && !_logFailureShown)
+            {
+                _logFailureShown = true;
+                ShowNotice($"FieldKit can no longer write to its log file ({_logger.LogFilePath}). " +
+                           "What you see in Activity is the only record of what happens from here on.");
+            }
+        });
+    }
+
+    private bool _followLog = true;
+    private bool _logFailureShown;
+
+    private void LogList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        // Extent changes are new lines arriving; anything else is the user scrolling.
+        if (e.ExtentHeightChange == 0)
+            _followLog = e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 1;
+    }
+
+    private void ShowNotice(string text)
+    {
+        AccountNoticeText.Text = AccountNotice.Visibility == Visibility.Visible
+            ? AccountNoticeText.Text + Environment.NewLine + Environment.NewLine + text
+            : text;
+        AccountNotice.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// winget and DISM redraw spinners and progress bars many times a second.
+    /// They still go to the log file; on screen they would bury the lines that matter.
+    /// </summary>
+    internal static bool IsProgressNoise(string entry)
+    {
+        var close = entry.LastIndexOf("] ", StringComparison.Ordinal);
+        var body = (close >= 0 ? entry[(close + 2)..] : entry).Trim();
+        if (body.Length == 0) return true;
+        if (body.Length == 1 && "-\\|/".Contains(body[0])) return true;
+        return body.Contains('█') || body.Contains('▒') || body.Contains('░');
     }
 }

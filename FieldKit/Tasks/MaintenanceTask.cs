@@ -1,3 +1,4 @@
+using System.Text;
 using FieldKit.Services;
 
 namespace FieldKit.Tasks;
@@ -45,22 +46,17 @@ public abstract class MaintenanceTask
         string fileName,
         string arguments,
         CancellationToken ct,
-        Func<string, bool>? outputFilter = null)
-        => CommandRunner.RunAsync(fileName, arguments, (message, level) => Log(message, level), ct, outputFilter);
+        Func<string, bool>? outputFilter = null,
+        Encoding? outputEncoding = null)
+        => CommandRunner.RunAsync(fileName, arguments, (message, level) => Log(message, level), ct, outputFilter, outputEncoding);
 
     /// <summary>
-    /// Runs a PowerShell command via the system-installed Windows PowerShell 5.1.
-    /// SECURITY: All callers must pass hardcoded command strings only.
-    /// Never pass user-controlled input — the command is interpolated into
-    /// the argument string without escaping. Use -EncodedCommand if user
-    /// input is ever needed in the future.
+    /// Runs a script in the system-installed Windows PowerShell 5.1. The script
+    /// travels as -EncodedCommand, so its quoting cannot affect the command line.
     /// </summary>
     protected Task<CommandResult> RunPowerShellAsync(
-        string command,
+        string script,
         CancellationToken ct,
         Func<string, bool>? outputFilter = null)
-    {
-        var ps = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
-        return RunCommandAsync(ps, $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"", ct, outputFilter);
-    }
+        => CommandRunner.RunPowerShellAsync(script, (message, level) => Log(message, level), ct, outputFilter);
 }

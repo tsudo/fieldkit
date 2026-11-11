@@ -23,6 +23,8 @@ jobs:
 
       - run: dotnet build FieldKit.sln --configuration Release
 
+      - run: dotnet test FieldKit.sln --configuration Release --no-build
+
       # Verify the configuration that actually ships. `dotnet build` does not
       # exercise single-file packing, self-contained runtime bundling, or
       # compression — all of which have their own failure modes.
@@ -42,6 +44,14 @@ jobs:
           $stray = Get-ChildItem publish -File |
                    Where-Object { $_.Name -ne 'FieldKit.exe' -and $_.Extension -ne '.pdb' }
           if ($stray) { throw "Not single-file - loose files present: $($stray.Name -join ', ')" }
+
+          # The development-only manifest (-p:FieldKitNoElevate=true) must never
+          # reach a release: every maintenance step needs administrator rights.
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch 'requestedExecutionLevel level="requireAdministrator"') {
+            throw "Published exe does not carry the requireAdministrator manifest"
+          }
 
           $sizeMb = [math]::Round((Get-Item $exe).Length / 1MB, 1)
           Write-Host "FieldKit.exe = $sizeMb MB"

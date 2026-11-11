@@ -3,9 +3,9 @@ namespace FieldKit.Tasks;
 public sealed class DismTask : MaintenanceTask
 {
     public DismTask() : base(
-        "Repair Windows Image",
+        "Repair Windows image",
         "Runs DISM RestoreHealth to repair the Windows component store.",
-        "Repair & Optimize",
+        "Repair",
         "10-30 min",
         selectedByDefault: false,
         isAdvanced: true,
@@ -19,7 +19,7 @@ public sealed class DismTask : MaintenanceTask
         if (dryRun)
         {
             Log("Would run DISM /Online /Cleanup-Image /RestoreHealth", "INFO");
-            return TaskResult.Ok("Previewed DISM repair");
+            return TaskResult.Ok("Would repair the Windows image");
         }
 
         var dism = Path.Combine(Environment.SystemDirectory, "dism.exe");

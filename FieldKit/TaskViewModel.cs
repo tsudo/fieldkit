@@ -1,42 +1,31 @@
-using System.ComponentModel;
 using FieldKit.Tasks;
 
 namespace FieldKit;
 
-public class TaskViewModel : INotifyPropertyChanged
+public sealed class TaskViewModel : RowViewModel
 {
-    public MaintenanceTask Task { get; }
-
-    public string Name => Task.Name;
-    public string Category => Task.Category;
-    public string EstimatedTime => Task.EstimatedTime;
-    public string TypeLabel => Task.IsAdvanced ? "Advanced" : "Routine";
-
-    private bool _isSelected;
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set { _isSelected = value; OnPropertyChanged(nameof(IsSelected)); }
-    }
-
-    private string _status = "Ready";
-    public string Status
-    {
-        get => _status;
-        set
-        {
-            _status = value;
-            OnPropertyChanged(nameof(Status));
-        }
-    }
-
-    public TaskViewModel(MaintenanceTask task)
+    public TaskViewModel(MaintenanceTask task) : base(task.Name, task.Description)
     {
         Task = task;
-        _isSelected = task.SelectedByDefault;
+        IsSelected = task.SelectedByDefault;
+        Meta = task.EstimatedTime;
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-    private void OnPropertyChanged(string name) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    public MaintenanceTask Task { get; }
+
+    public string Category => Task.Category;
+
+    /// <summary>Puts the row back to its idle look: description on the left, estimate on the right.</summary>
+    public void Reset()
+    {
+        SetState(RunState.Ready, Task.Description);
+        RefreshMeta();
+    }
+
+    public void RefreshMeta()
+    {
+        Meta = string.IsNullOrWhiteSpace(Task.ContextInfo)
+            ? Task.EstimatedTime
+            : $"{Task.ContextInfo}  ·  {Task.EstimatedTime}";
+    }
 }
