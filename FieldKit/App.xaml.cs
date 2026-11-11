@@ -13,6 +13,10 @@ public partial class App : Application
     {
         try
         {
+            // Until the main window exists, closing the licence dialog must not
+            // count as closing the application's last window.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             if (!DisclaimerWindow.HasAccepted())
             {
                 var disclaimer = new DisclaimerWindow();
@@ -45,6 +49,8 @@ public partial class App : Application
             var pageIndex = Array.IndexOf(e.Args, "--page");
             var startPage = pageIndex >= 0 && pageIndex + 1 < e.Args.Length ? e.Args[pageIndex + 1] : null;
             var mainWindow = new MainWindow(tasks, _logger, startPage);
+            MainWindow = mainWindow;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
             mainWindow.Show();
 #if DEBUG
             ScheduleDebugCapture(mainWindow, e.Args);

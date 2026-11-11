@@ -24,6 +24,14 @@ public static class AppPaths
     private static readonly Lazy<string> LazyRoot = new(ResolveRoot);
 
     public static string Root => LazyRoot.Value;
+
+    /// <summary>
+    /// True when neither the drive root nor ProgramData gave a trusted folder and
+    /// this launch is using a throwaway folder in temp. The window says so,
+    /// because tools and logs will not be where the user expects.
+    /// </summary>
+    public static bool IsTemporaryRoot =>
+        Root.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase);
     public static string Tools => Path.Combine(Root, "Tools");
     public static string Reports => Path.Combine(Root, "Reports");
 
@@ -78,7 +86,9 @@ public static class AppPaths
                 // Rename, don't inspect or fix. Moving a directory entry never
                 // follows a link, and the contents stay available to whoever
                 // made them.
-                Directory.Move(path, $"{path}.untrusted-{DateTime.Now:yyyyMMdd-HHmmss}");
+                // The random suffix stops anyone pre-creating the destination name to block the rename.
+                var suffix = Guid.NewGuid().ToString("N")[..8];
+                Directory.Move(path, $"{path}.untrusted-{DateTime.Now:yyyyMMdd-HHmmss}-{suffix}");
                 info.Refresh();
             }
 

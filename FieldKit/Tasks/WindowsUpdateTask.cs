@@ -49,13 +49,14 @@ public sealed class WindowsUpdateTask : MaintenanceTask
         foreach (var title in titles)
             Log($"Pending: {title}", "INFO");
 
+        // Pending updates are work still to do, so this is "check", not "done".
         if (dryRun)
-            return TaskResult.Ok($"{titles.Count} update(s) pending");
+            return TaskResult.Warn($"{titles.Count} update(s) pending");
 
         var opened = Shell.Open("ms-settings:windowsupdate", Logger);
-        return opened
-            ? TaskResult.Ok($"{titles.Count} update(s) pending. Settings is open: install them there.")
-            : TaskResult.Warn($"{titles.Count} update(s) pending. Open Settings > Windows Update to install them.");
+        return TaskResult.Warn(opened
+            ? $"{titles.Count} update(s) pending. Settings is open: install them there."
+            : $"{titles.Count} update(s) pending. Open Settings > Windows Update to install them.");
     }
 
     private TaskResult OpenSettingsFallback(bool dryRun, string reason)

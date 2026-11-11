@@ -53,9 +53,21 @@ public partial class MainWindow : Window
         {
             AccountNoticeText.Text =
                 $"FieldKit is running as {current}, but {interactive} is signed in. " +
-                "Per-user steps (temp files, Storage Sense, winget apps) act on the administrator's profile, not theirs.";
+                "Per-user steps (temp files, Recycle Bin, Storage Sense, winget apps) act on the administrator's profile, not theirs.";
             AccountNotice.Visibility = Visibility.Visible;
             _logger.Log($"Running as {current}; interactive user is {interactive}.", "WARN");
+        }
+
+        if (AppPaths.IsTemporaryRoot)
+        {
+            var existing = AccountNotice.Visibility == Visibility.Visible
+                ? AccountNoticeText.Text + Environment.NewLine + Environment.NewLine
+                : "";
+            AccountNoticeText.Text = existing +
+                $"FieldKit could not create its usual folder on the system drive, so this session keeps logs, reports and tools in {AppPaths.Root}. " +
+                "They will not be there next time. Check for a folder named FieldKit at the drive root that FieldKit did not create.";
+            AccountNotice.Visibility = Visibility.Visible;
+            _logger.Log($"Using temporary kit folder {AppPaths.Root}.", "WARN");
         }
 
         // `FieldKit.exe --page apps` opens straight on a page; anything else opens Maintain.
@@ -86,18 +98,46 @@ public partial class MainWindow : Window
 
     private void OnRunLockChanged()
     {
-        Dispatcher.Invoke(() => BusyText.Text = RunLock.IsBusy ? $"{RunLock.Owner} is running" : "");
+        Dispatcher.Invoke(() =>
+        {
+            if (_closeWhenIdle && !RunLock.IsBusy)
+            {
+                Close();
+                return;
+            }
+            if (!_closeWhenIdle)
+                BusyText.Text = RunLock.IsBusy ? $"{RunLock.Owner} is running" : "";
+        });
     }
+
+    private bool _closeWhenIdle;
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!RunLock.IsBusy) return;
 
+        // Never let the window go while a job holds the lock: the process would
+        // exit, the child (DISM, an installer) would keep running with nobody
+        // watching, and the run would leave no summary.
+        e.Cancel = true;
+        if (_closeWhenIdle) return;
+
         var answer = MessageBox.Show(this,
-            $"{RunLock.Owner} is still running. Closing FieldKit stops it partway through.\n\nClose anyway?",
+            $"{RunLock.Owner} is still running.\n\nStop it and close FieldKit? The current step is ended partway through; " +
+            "FieldKit closes as soon as it has stopped and written its summary.",
             "FieldKit", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-        if (answer != MessageBoxResult.Yes)
-            e.Cancel = true;
+        if (answer != MessageBoxResult.Yes) return;
+
+        // The job may have finished while the question was on screen.
+        if (!RunLock.IsBusy)
+        {
+            e.Cancel = false;
+            return;
+        }
+
+        _closeWhenIdle = true;
+        BusyText.Text = $"Stopping {RunLock.Owner}, then closing";
+        RunLock.RequestStop();
     }
 
     private void OpenKitFolder_Click(object sender, RoutedEventArgs e) => Shell.Open(AppPaths.Root, _logger);
@@ -129,8 +169,37 @@ public partial class MainWindow : Window
             _logLines.Add(new LogLine(entry, level));
             while (_logLines.Count > MaxLogLines)
                 _logLines.RemoveAt(0);
-            LogList.ScrollIntoView(_logLines[^1]);
+
+            // Follow new output only while the view is already at the end, so
+            // scrolling up to read something is not undone by the next line.
+            if (_followLog)
+                LogList.ScrollIntoView(_logLines[^1]);
+
+            if (_logger.WriteFailed && !_logFailureShown)
+            {
+                _logFailureShown = true;
+                ShowNotice($"FieldKit can no longer write to its log file ({_logger.LogFilePath}). " +
+                           "What you see in Activity is the only record of what happens from here on.");
+            }
         });
+    }
+
+    private bool _followLog = true;
+    private bool _logFailureShown;
+
+    private void LogList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        // Extent changes are new lines arriving; anything else is the user scrolling.
+        if (e.ExtentHeightChange == 0)
+            _followLog = e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 1;
+    }
+
+    private void ShowNotice(string text)
+    {
+        AccountNoticeText.Text = AccountNotice.Visibility == Visibility.Visible
+            ? AccountNoticeText.Text + Environment.NewLine + Environment.NewLine + text
+            : text;
+        AccountNotice.Visibility = Visibility.Visible;
     }
 
     /// <summary>

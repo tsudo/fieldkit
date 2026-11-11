@@ -21,7 +21,9 @@ public sealed class CreateRestorePointTask : MaintenanceTask
             return TaskResult.Ok("Would create a restore point");
         }
 
-        var description = $"FieldKit {DateTime.Now:yyyy-MM-dd HH:mm}";
+        // Invariant culture: the text goes inside a quoted PowerShell string, and a
+        // customised regional time separator must not be able to change it.
+        var description = "FieldKit " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
         // Checkpoint-Computer exits 0 without creating anything when Windows made a
         // restore point in the last 24 hours. Comparing the newest sequence number

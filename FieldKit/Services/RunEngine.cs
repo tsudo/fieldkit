@@ -28,7 +28,9 @@ public sealed class RunEngine
         var reboot = false;
 
         _logger.Log($"{title} started. Preview: {(preview ? "on" : "off")}.", "INFO");
-        _logger.LogLines(SystemInfo.BuildRunManifest(steps.Select(step => step.Name), _logger.LogFilePath));
+        // The manifest runs several WMI queries; keep them off the UI thread.
+        var stepNames = steps.Select(step => step.Name).ToList();
+        _logger.LogLines(await Task.Run(() => SystemInfo.BuildRunManifest(stepNames, _logger.LogFilePath), CancellationToken.None));
 
         for (var i = 0; i < steps.Count; i++)
         {
@@ -50,9 +52,15 @@ public sealed class RunEngine
             {
                 result = await step.Task.ExecuteAsync(preview, ct);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 result = TaskResult.Skipped("Stopped while running");
+            }
+            catch (OperationCanceledException ex)
+            {
+                // Cancelled, but not by the Stop button: a timeout inside the step.
+                _logger.Log($"[{step.Name}] Gave up waiting: {ex.Message}", "ERROR");
+                result = TaskResult.Fail("Timed out");
             }
             catch (TimeoutException ex)
             {

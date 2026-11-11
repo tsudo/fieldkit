@@ -103,7 +103,7 @@ public partial class SupportKitPage : UserControl, IPage
             return;
         }
 
-        if (!RunLock.TryEnter("Support kit build"))
+        if (!RunLock.TryEnter("Support kit build", () => Stop_Click(this, new RoutedEventArgs())))
         {
             StatusText.Text = $"Waiting: {RunLock.Owner} is running";
             return;
@@ -143,6 +143,15 @@ public partial class SupportKitPage : UserControl, IPage
                 row.SetState(RunState.Skipped, "Stopped; nothing from this item was kept");
                 items.Add(new RunItem(row.Name, "Skipped", "Stopped while running"));
                 skipped++;
+            }
+            catch (Exception ex)
+            {
+                // One item failing must not strand its row at "Running" or
+                // abandon the items after it.
+                _logger.Log($"[Support kit] {row.Name} failed unexpectedly: {ex}", "ERROR");
+                row.SetState(RunState.Error, $"Unexpected failure: {ex.Message}");
+                items.Add(new RunItem(row.Name, "Error", ex.Message));
+                error++;
             }
         }
 
@@ -212,6 +221,12 @@ public partial class SupportKitPage : UserControl, IPage
 
     private async void Zip_Click(object sender, RoutedEventArgs e)
     {
+        var proceed = MessageBox.Show(Window.GetWindow(this),
+            "The zip will hold this PC's reports and every FieldKit log: its name, serial number, network addresses, " +
+            "account names, installed software, startup commands and recent error messages.\n\nCreate it?",
+            "Zip for sharing", MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.Yes);
+        if (proceed != MessageBoxResult.Yes) return;
+
         if (!RunLock.TryEnter("Zip")) return;
         try
         {
@@ -220,10 +235,7 @@ public partial class SupportKitPage : UserControl, IPage
             StatusText.Text = outcome.Message;
             if (outcome.Succeeded && zipPath is not null)
             {
-                MessageBox.Show(Window.GetWindow(this),
-                    $"Saved to:\n{zipPath}\n\nIt holds this PC's reports and FieldKit logs, which include its name, " +
-                    "serial number and network addresses. Look through it before sending it to anyone.",
-                    "Zip for sharing", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText.Text = $"Saved {Path.GetFileName(zipPath)}. Read it through before sending it to anyone.";
                 Shell.Open(AppPaths.Root, _logger);
             }
         }
@@ -233,7 +245,7 @@ public partial class SupportKitPage : UserControl, IPage
         }
     }
 
-    private void Remove_Click(object sender, RoutedEventArgs e)
+    private async void Remove_Click(object sender, RoutedEventArgs e)
     {
         var answer = MessageBox.Show(Window.GetWindow(this),
             $"Remove the support kit from this PC?\n\nThis deletes the tools, reports, zip files and earlier logs in:\n{AppPaths.Root}\n\n" +
@@ -241,12 +253,24 @@ public partial class SupportKitPage : UserControl, IPage
             "Remove kit", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
 
-        if (!RunLock.TryEnter("Remove kit")) return;
+        if (!RunLock.TryEnter("Remove kit"))
+        {
+            StatusText.Text = $"Waiting: {RunLock.Owner} is running";
+            return;
+        }
+
         try
         {
-            var outcome = _kit.RemoveKit();
+            StatusText.Text = "Removing the kit";
+            // Off the UI thread: the full suite is thousands of files.
+            var outcome = await Task.Run(_kit.RemoveKit);
             StatusText.Text = outcome.Message;
             RefreshPresence();
+        }
+        catch (Exception ex)
+        {
+            _logger.Log($"[Support kit] Remove failed unexpectedly: {ex}", "ERROR");
+            StatusText.Text = $"The kit could not be removed: {ex.Message}";
         }
         finally
         {

@@ -133,6 +133,33 @@ public class WingetServiceTests
     }
 
     [Fact]
+    public void Announced_count_is_read_so_a_shortfall_can_be_reported()
+    {
+        Assert.Equal(4, WingetService.ParseAnnouncedCount(FourColumnTable));
+        Assert.Null(WingetService.ParseAnnouncedCount(["No installed package found matching input criteria."]));
+
+        // The "dropped rows" case: winget says 3, one row is readable. The scan
+        // compares these two numbers and tells the user about the difference.
+        string[] lines =
+        [
+            "Name    Id            Version Available",
+            "---------------------------------------",
+            "Long    Vendor.LongNam… 1.0   2.0",
+            "NoDot   JustAWord     1.0     2.0",
+            "Good    Vendor.Good   1.0     2.0",
+            "3 upgrades available."
+        ];
+        Assert.Equal(3, WingetService.ParseAnnouncedCount(lines));
+        Assert.Single(WingetService.ParseUpgradeTable(lines));
+    }
+
+    [Fact]
+    public void Invalid_export_json_throws_so_the_scan_can_report_unknown()
+    {
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WingetService.ParseExport("{ not json"));
+    }
+
+    [Fact]
     public void Returns_nothing_when_there_is_no_table()
     {
         Assert.Empty(WingetService.ParseUpgradeTable(["No installed package found matching input criteria."]));

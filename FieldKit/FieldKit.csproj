@@ -7,9 +7,13 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- UI work only: `dotnet run -p:FieldKitNoElevate=true` starts without the
-         elevation prompt. Maintenance steps that need admin rights will fail. -->
-    <ApplicationManifest Condition="'$(FieldKitNoElevate)' == 'true'">app.dev.manifest</ApplicationManifest>
+    <!-- UI work only, Debug only: `dotnet run -p:FieldKitNoElevate=true` starts without
+         the elevation prompt. Maintenance steps that need admin rights will fail.
+         The Configuration condition means a Release build can never pick this up,
+         whether from a command line or a stray environment variable. -->
+    <ApplicationManifest Condition="'$(FieldKitNoElevate)' == 'true' and '$(Configuration)' == 'Debug'">app.dev.manifest</ApplicationManifest>
+    <!-- Keep the build machine's folder names out of the binary and its symbols. -->
+    <PathMap>$(MSBuildProjectDirectory)=/_/FieldKit</PathMap>
     <ApplicationIcon>fieldkit.ico</ApplicationIcon>
     <AssemblyName>FieldKit</AssemblyName>
     <RootNamespace>FieldKit</RootNamespace>

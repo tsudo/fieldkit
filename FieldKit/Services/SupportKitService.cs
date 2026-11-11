@@ -90,30 +90,61 @@ public sealed class SupportKitService
             // ExtractToDirectory rejects entries that would land outside the target.
             await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, staging), ct);
 
-            var executables = Directory.EnumerateFiles(staging, "*.exe", SearchOption.AllDirectories).ToList();
-            if (executables.Count == 0)
-                return Reject(staging, "The download contained no programs");
-
-            foreach (var exe in executables)
+            // Decide what stays by content, not by file name. Every Windows
+            // program (anything starting with the "MZ" header, whatever its
+            // extension) must be Microsoft-signed or the whole download is
+            // rejected. Plain .txt files stay. Everything else is removed: help
+            // files, scripts and shortcuts cannot be signed, and a DLL placed
+            // beside a signed tool would be loaded by it.
+            var executables = new List<string>();
+            var dropped = 0;
+            foreach (var file in EnumerateFilesWithoutFollowingLinks(staging).ToList())
             {
                 ct.ThrowIfCancellationRequested();
-                if (!Authenticode.IsSignedByMicrosoft(exe, out var reason))
+
+                if (IsWindowsProgram(file))
                 {
-                    _logger.Log($"[Support kit] {Path.GetFileName(exe)}: {reason}", "ERROR");
-                    return Reject(staging, $"{Path.GetFileName(exe)} failed its signature check; nothing was kept");
+                    if (!Authenticode.IsSignedByMicrosoft(file, out var reason))
+                    {
+                        _logger.Log($"[Support kit] {Path.GetFileName(file)}: {reason}", "ERROR");
+                        return Reject(staging, $"{Path.GetFileName(file)} failed its signature check; nothing was kept");
+                    }
+                    if (Path.GetExtension(file).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                        executables.Add(file);
+                }
+                else if (!Path.GetExtension(file).Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(file);
+                    dropped++;
                 }
             }
 
-            DeleteDirectoryIfPresent(target);
+            if (executables.Count == 0)
+                return Reject(staging, "The download contained no programs");
+            if (dropped > 0)
+                _logger.Log($"[Support kit] {tool.Name}: removed {dropped} file(s) that cannot be verified (help files and similar).", "INFO");
+
+            if (!DeleteDirectoryIfPresent(target))
+            {
+                DeleteDirectoryIfPresent(staging);
+                return new KitOutcome(false, $"The existing copy of {tool.Name} is open. Close it and build the kit again.");
+            }
             Directory.Move(staging, target);
 
             _logger.Log($"[Support kit] {tool.Name}: {executables.Count} Microsoft-signed program(s) in {target}", "OK");
             return new KitOutcome(true, $"Ready, {executables.Count} signed program(s)");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             DeleteDirectoryIfPresent(staging);
             throw;
+        }
+        catch (OperationCanceledException)
+        {
+            // HttpClient reports its own timeout as a cancellation. Nobody pressed Stop.
+            _logger.Log($"[Support kit] {tool.Name}: the download timed out.", "ERROR");
+            DeleteDirectoryIfPresent(staging);
+            return new KitOutcome(false, "The download timed out. Check the internet connection and try again.");
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -125,6 +156,13 @@ public sealed class SupportKitService
         {
             DeleteFileIfPresent(zipPath);
         }
+    }
+
+    /// <summary>True when the file starts with the "MZ" header every Windows executable, DLL and driver has.</summary>
+    internal static bool IsWindowsProgram(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return stream.ReadByte() == 'M' && stream.ReadByte() == 'Z';
     }
 
     private KitOutcome Reject(string staging, string message)
@@ -185,14 +223,23 @@ public sealed class SupportKitService
 
     private static async Task<string> CaptureRecentErrorsAsync(CancellationToken ct)
     {
+        // "No events matched" is a clean result. Any other failure to read the
+        // log must not be written up as "no errors": the script exits 3 instead.
         const string script =
-            "$events = Get-WinEvent -FilterHashtable @{LogName='System','Application'; Level=1,2; StartTime=(Get-Date).AddDays(-7)} " +
-            "-MaxEvents 300 -ErrorAction SilentlyContinue; " +
-            "if (-not $events) { 'No error or critical events in the last 7 days.' } else { " +
+            "$events = @(); " +
+            "try { $events = @(Get-WinEvent -FilterHashtable @{LogName='System','Application'; Level=1,2; StartTime=(Get-Date).AddDays(-7)} " +
+            "-MaxEvents 300 -ErrorAction Stop) } " +
+            "catch { if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { 'FIELDKIT_EVENTLOG_FAILED ' + $_.Exception.Message; exit 3 } } " +
+            "if ($events.Count -eq 0) { 'No error or critical events in the last 7 days.' } else { " +
             "$events | ForEach-Object { '{0:yyyy-MM-dd HH:mm}  {1,-11} {2}  (ID {3})' -f $_.TimeCreated, $_.LevelDisplayName, $_.ProviderName, $_.Id; " +
             "$first = ($_.Message -split \"`n\")[0]; if ($first) { '    ' + $first.Trim() } } }";
 
         var result = await CommandRunner.RunPowerShellAsync(script, cancellationToken: ct, timeout: TimeSpan.FromMinutes(3));
+        if (result.ExitCode != 0)
+        {
+            var detail = result.AllLines.LastOrDefault(line => !string.IsNullOrWhiteSpace(line)) ?? $"exit code {result.ExitCode}";
+            throw new InvalidOperationException($"The event log could not be read: {detail.Replace("FIELDKIT_EVENTLOG_FAILED ", "")}");
+        }
         return string.Join(Environment.NewLine, result.AllLines);
     }
 

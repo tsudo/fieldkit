@@ -129,7 +129,7 @@ public partial class MaintainPage : UserControl, IPage
             return;
         }
 
-        if (!RunLock.TryEnter("Maintenance"))
+        if (!RunLock.TryEnter("Maintenance", () => Stop_Click(this, new RoutedEventArgs())))
         {
             StatusText.Text = $"Waiting: {RunLock.Owner} is running";
             return;

@@ -6,7 +6,12 @@ namespace FieldKit.Services;
 
 public sealed record WingetUpgrade(string Name, string Id, string InstalledVersion, string AvailableVersion);
 
-public sealed record WingetScan(IReadOnlySet<string> InstalledIds, IReadOnlyList<WingetUpgrade> Upgrades);
+/// <summary>
+/// What a scan learned. <see cref="InstalledIds"/> is null when winget could not
+/// say what is installed: that is "unknown", which is not the same as "nothing".
+/// <see cref="Problem"/> is set when part of the scan could not be trusted.
+/// </summary>
+public sealed record WingetScan(IReadOnlySet<string>? InstalledIds, IReadOnlyList<WingetUpgrade> Upgrades, string? Problem);
 
 public sealed record WingetOutcome(bool Succeeded, int ExitCode, string Message);
 
@@ -46,7 +51,13 @@ public sealed partial class WingetService
         var alias = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Microsoft", "WindowsApps", "winget.exe");
-        return File.Exists(alias) ? alias : null;
+        if (!File.Exists(alias)) return null;
+
+        // The real entry is an app execution alias, which is a reparse point
+        // created by Windows. An ordinary file at this user-writable path is
+        // something else wearing the name, and FieldKit would run it elevated.
+        try { return File.GetAttributes(alias).HasFlag(FileAttributes.ReparsePoint) ? alias : null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     public async Task<WingetScan> ScanAsync(CancellationToken ct)
@@ -54,29 +65,64 @@ public sealed partial class WingetService
         var winget = ResolvePath() ?? throw new InvalidOperationException("winget is not installed for this account.");
 
         var installed = await GetInstalledIdsAsync(winget, ct);
+        var problems = new List<string>();
+        if (installed is null)
+            problems.Add("winget could not report which apps are installed, so installed apps are not marked.");
 
         var result = await CommandRunner.RunAsync(winget, $"upgrade {CommonFlags}",
             cancellationToken: ct, outputEncoding: Encoding.UTF8, timeout: TimeSpan.FromMinutes(3));
-        var upgrades = ParseUpgradeTable(result.Output);
 
-        _logger.Log($"[Apps] Scan found {installed.Count} installed package(s) known to winget, {upgrades.Count} with an update.", "INFO");
-        return new WingetScan(installed, upgrades);
+        if (result.ExitCode != 0 && result.ExitCode != NoApplicableUpgrade)
+        {
+            foreach (var line in result.AllLines.Where(line => !string.IsNullOrWhiteSpace(line)).TakeLast(5))
+                _logger.Log($"[Apps] winget: {line.Trim()}", "WARN");
+            throw new InvalidOperationException($"winget could not list updates (code 0x{result.ExitCode:X8}).");
+        }
+
+        var upgrades = ParseUpgradeTable(result.Output);
+        var announced = ParseAnnouncedCount(result.Output);
+        if (announced is { } expected && expected != upgrades.Count)
+        {
+            problems.Add($"winget reported {expected} update(s) but FieldKit could read {upgrades.Count} of them. " +
+                         "Run \"winget upgrade\" in a terminal to see the full list.");
+        }
+
+        var problem = problems.Count == 0 ? null : string.Join(" ", problems);
+        _logger.Log($"[Apps] Scan found {(installed is null ? "an unknown number of" : installed.Count.ToString())} installed package(s) known to winget, " +
+                    $"{upgrades.Count} with an update.{(problem is null ? "" : " " + problem)}", problem is null ? "INFO" : "WARN");
+        return new WingetScan(installed, upgrades, problem);
     }
 
-    private async Task<IReadOnlySet<string>> GetInstalledIdsAsync(string winget, CancellationToken ct)
+    /// <summary>The number in winget's "N upgrades available." line, or null when there is no such line.</summary>
+    public static int? ParseAnnouncedCount(IEnumerable<string> lines)
+    {
+        foreach (var raw in lines)
+        {
+            var line = AnsiPattern().Replace(raw, "").Trim();
+            var match = CountLinePattern().Match(line);
+            if (match.Success && int.TryParse(line.Split(' ', 2)[0], out var count))
+                return count;
+        }
+        return null;
+    }
+
+    /// <summary>Installed package IDs, or null when winget's export could not be produced or read.</summary>
+    private async Task<IReadOnlySet<string>?> GetInstalledIdsAsync(string winget, CancellationToken ct)
     {
         // `winget export` is the one command that reports installed packages as
         // JSON, so installed state never depends on parsing a text table.
         var exportFile = Path.Combine(AppPaths.Root, $".winget-export-{Guid.NewGuid():N}.json");
         try
         {
-            await CommandRunner.RunAsync(winget, $"export -o \"{exportFile}\" {CommonFlags}",
+            // winget can exit non-zero here and still write a usable file (it warns
+            // about installed apps that no source knows). The file decides.
+            var export = await CommandRunner.RunAsync(winget, $"export -o \"{exportFile}\" {CommonFlags}",
                 cancellationToken: ct, outputEncoding: Encoding.UTF8, timeout: TimeSpan.FromMinutes(3));
 
             if (!File.Exists(exportFile))
             {
-                _logger.Log("[Apps] winget export produced no file; installed state is unknown.", "WARN");
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _logger.Log($"[Apps] winget export produced no file (code 0x{export.ExitCode:X8}); installed state is unknown.", "WARN");
+                return null;
             }
 
             return ParseExport(await File.ReadAllTextAsync(exportFile, ct));
@@ -84,7 +130,7 @@ public sealed partial class WingetService
         catch (JsonException ex)
         {
             _logger.Log($"[Apps] Could not read winget's export: {ex.Message}", "WARN");
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return null;
         }
         finally
         {

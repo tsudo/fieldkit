@@ -35,6 +35,11 @@ public class StoreUpdateTask : MaintenanceTask
                 {
                     var result = obj.InvokeMethod("UpdateScanMethod", null, null);
                     var retVal = result?["ReturnValue"];
+                    if (retVal is not null && Convert.ToInt64(retVal) != 0)
+                    {
+                        Log($"Store update scan was refused (return value: {retVal}).", "WARN");
+                        return TaskResult.Warn($"The Store did not accept the request (code {retVal}). Open Store > Library > Get updates.");
+                    }
                     Log($"Store update scan triggered (return value: {retVal}).", "OK");
                     Log("  Updates install in the background. Open the Store to verify.", "INFO");
                     return TaskResult.Ok("Store update scan triggered; installation continues in the background");

@@ -39,8 +39,21 @@ public partial class ReportsPage : UserControl, IPage
     {
         if (sender is not Button { Tag: string path }) return;
 
-        if (File.Exists(path))
-            Shell.Open(path, _logger);
+        // The path was read back from a JSON file. Open it only if it is a log
+        // that sits directly in the log folder.
+        var logs = Path.GetFullPath(AppPaths.Logs);
+        string full;
+        try { full = Path.GetFullPath(path); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            StatusText.Text = "That run's log path is not valid";
+            return;
+        }
+
+        var inLogFolder = string.Equals(Path.GetDirectoryName(full), logs, StringComparison.OrdinalIgnoreCase)
+                          && full.EndsWith(".log", StringComparison.OrdinalIgnoreCase);
+        if (inLogFolder && File.Exists(full))
+            Shell.Open(full, _logger);
         else
             StatusText.Text = "That log file is no longer in the kit folder";
     }

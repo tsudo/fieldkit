@@ -8,13 +8,25 @@ namespace FieldKit;
 
 public partial class SystemInfoWindow : Window
 {
-    private readonly string _report;
+    private string _report = "";
 
     public SystemInfoWindow()
     {
         InitializeComponent();
-        _report = SystemInfo.BuildFullReport();
-        ReportBox.Text = _report;
+        ReportBox.Text = "Gathering system information...";
+        Loaded += async (_, _) =>
+        {
+            try
+            {
+                // Dozens of WMI queries: run them off the UI thread so the window opens at once.
+                _report = await Task.Run(SystemInfo.BuildFullReport);
+                ReportBox.Text = _report;
+            }
+            catch (Exception ex)
+            {
+                ReportBox.Text = $"System information could not be gathered: {ex.Message}";
+            }
+        };
     }
 
     private void Export_Click(object sender, RoutedEventArgs e)
@@ -25,6 +37,12 @@ public partial class SystemInfoWindow : Window
             Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
             DefaultExt = "txt"
         };
+
+        if (_report.Length == 0)
+        {
+            MessageBox.Show(this, "The report is not ready yet.", "Save to file", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         if (dlg.ShowDialog(this) == true)
         {

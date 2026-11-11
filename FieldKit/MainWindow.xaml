@@ -76,6 +76,7 @@
                 <ListBox x:Name="LogList" Grid.Row="1" Margin="14,0,6,6"
                          Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.ScrollChanged="LogList_ScrollChanged"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling">
                     <ListBox.ItemContainerStyle>

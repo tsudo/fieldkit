@@ -134,7 +134,11 @@ public static class CommandRunner
         TimeSpan? timeout = null)
     {
         var ps = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
-        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes("$ProgressPreference='SilentlyContinue'; " + script));
+        // Modules load only from the Windows PowerShell install folder, so a
+        // module of the same name in the user's Documents cannot shadow a cmdlet.
+        const string preamble =
+            "$env:PSModulePath = Join-Path $PSHOME 'Modules'; $ProgressPreference='SilentlyContinue'; ";
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(preamble + script));
         return RunAsync(ps,
             $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -OutputFormat Text -EncodedCommand {encoded}",
             log, cancellationToken, outputFilter, timeout: timeout);

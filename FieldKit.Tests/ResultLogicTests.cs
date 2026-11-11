@@ -29,9 +29,14 @@ public class ResultLogicTests
     public void Restore_point_output_mentioning_24_does_not_decide_the_result()
     {
         // The old check treated any output containing "24" as "already created".
-        var result = CreateRestorePointTask.Interpret(1, ["Error 0x80042424 at line 24"], "FieldKit test");
+        // Exit 0 so the output is what gets judged: text containing "24" with
+        // no marker must not be read as "created" or "already exists".
+        var result = CreateRestorePointTask.Interpret(0, ["Restore point 24 of 24 checked"], "FieldKit test");
         Assert.Equal(TaskResultState.Warning, result.State);
-        Assert.Contains("could not be created", result.Summary);
+        Assert.Contains("did not report a result", result.Summary);
+
+        Assert.Contains("could not be created",
+            CreateRestorePointTask.Interpret(1, ["Error 0x80042424 at line 24"], "FieldKit test").Summary);
     }
 
     [Fact]
@@ -45,7 +50,7 @@ public class ResultLogicTests
     [Fact]
     public void Clear_temp_with_files_in_use_is_still_success()
     {
-        var result = ClearTemporaryFilesTask.Summarize(dryRun: false, removed: 40, inUse: 6, recent: 12);
+        var result = ClearTemporaryFilesTask.Summarize(dryRun: false, removed: 40, inUse: 6, kept: 12);
         Assert.Equal(TaskResultState.Success, result.State);
         Assert.Contains("40", result.Summary);
         Assert.Contains("18 kept", result.Summary);
@@ -54,14 +59,46 @@ public class ResultLogicTests
     [Fact]
     public void Clear_temp_warns_only_when_nothing_could_be_removed()
     {
-        Assert.Equal(TaskResultState.Warning, ClearTemporaryFilesTask.Summarize(false, removed: 0, inUse: 3, recent: 0).State);
-        Assert.Equal(TaskResultState.Success, ClearTemporaryFilesTask.Summarize(false, removed: 0, inUse: 0, recent: 9).State);
+        Assert.Equal(TaskResultState.Warning, ClearTemporaryFilesTask.Summarize(false, removed: 0, inUse: 3, kept: 0).State);
+        Assert.Equal(TaskResultState.Success, ClearTemporaryFilesTask.Summarize(false, removed: 0, inUse: 0, kept: 9).State);
     }
 
     [Fact]
     public void Clear_temp_preview_says_would()
     {
         Assert.StartsWith("Would remove", ClearTemporaryFilesTask.Summarize(true, 5, 0, 0).Summary);
+    }
+
+    // ---- Recycle Bin --------------------------------------------------
+
+    [Fact]
+    public void Recycle_bin_result_comes_from_the_markers()
+    {
+        Assert.Equal("Recycle Bin was already empty",
+            EmptyRecycleBinTask.Interpret(0, [EmptyRecycleBinTask.EmptyMarker], null, null).Summary);
+
+        var cleared = EmptyRecycleBinTask.Interpret(0, [$"{EmptyRecycleBinTask.ClearedMarker} 12"], null, null);
+        Assert.Equal(TaskResultState.Success, cleared.State);
+        Assert.Contains("12", cleared.Summary);
+    }
+
+    [Fact]
+    public void Recycle_bin_failure_mentioning_empty_is_not_called_already_empty()
+    {
+        // The old check treated any error text containing "empty" as success,
+        // which also matched "The directory is not empty".
+        var result = EmptyRecycleBinTask.Interpret(1, ["The directory is not empty."], null, null);
+        Assert.Equal(TaskResultState.Warning, result.State);
+    }
+
+    [Fact]
+    public void Recycle_bin_under_another_account_says_whose_bin_it_was()
+    {
+        var result = EmptyRecycleBinTask.Interpret(0, [$"{EmptyRecycleBinTask.ClearedMarker} 3"], @"PC\Admin", @"PC\Sam");
+
+        Assert.Equal(TaskResultState.Warning, result.State);
+        Assert.Contains("Admin", result.Summary);
+        Assert.Contains("Sam was not touched", result.Summary);
     }
 
     // ---- SFC ----------------------------------------------------------
@@ -111,6 +148,74 @@ public class ResultLogicTests
     public void Progress_redraws_stay_off_screen(string entry, bool isNoise)
     {
         Assert.Equal(isNoise, MainWindow.IsProgressNoise(entry));
+    }
+
+    // ---- Run history, rows and the run lock ---------------------------
+
+    [Fact]
+    public void Run_summary_survives_a_json_round_trip()
+    {
+        var original = new RunSummary("Apps", "App install and update", new DateTime(2026, 11, 10, 9, 0, 0),
+            new DateTime(2026, 11, 10, 9, 4, 30), 2, 0, 1, 1, Preview: false, Stopped: true, RebootRecommended: true,
+            FreeGbBefore: null, FreeGbAfter: null, LogFile: @"C:\FieldKit\Logs\x.log",
+            Items: [new RunItem("Firefox", "Success", "Installed"), new RunItem("VLC", "Error", "The app is running.")]);
+
+        var json = RunHistory.Serialize(original);
+        var copy = RunHistory.Deserialize(json)!;
+
+        Assert.DoesNotContain("CountsText", json); // computed values are not stored
+        Assert.Equal(original.Started, copy.Started);
+        Assert.Equal(original.Duration, copy.Duration);
+        Assert.Equal(original.CountsText, copy.CountsText);
+        Assert.Equal("Error", copy.Tone);
+        Assert.Equal(2, copy.Items.Count);
+        Assert.Equal("The app is running.", copy.Items[1].Summary);
+        Assert.True(copy.Stopped && copy.RebootRecommended);
+    }
+
+    [Fact]
+    public void Row_shows_a_pill_for_each_state_and_clears_it_on_reset()
+    {
+        var row = new RowViewModel("Step", "What it does");
+
+        row.SetState(RunState.Running);
+        Assert.Equal("Info", row.PillTone);
+        Assert.StartsWith("Running", row.PillText);
+
+        row.SetState(RunState.Error, "It broke");
+        Assert.Equal("Error", row.PillTone);
+        Assert.StartsWith("Failed", row.PillText);
+        Assert.Equal("It broke", row.Detail);
+
+        row.SetState(RunState.Skipped, "Stopped");
+        Assert.Equal("Skipped", row.PillText);
+
+        row.SetState(RunState.Ready, "What it does");
+        Assert.Equal("", row.PillText);
+        Assert.Equal("", row.PillTone);
+    }
+
+    [Fact]
+    public void Run_lock_admits_one_job_and_forwards_a_stop_request()
+    {
+        var stopped = 0;
+        Assert.True(RunLock.TryEnter("First", () => stopped++));
+        try
+        {
+            Assert.False(RunLock.TryEnter("Second"));
+            Assert.Equal("First", RunLock.Owner);
+
+            RunLock.RequestStop();
+            Assert.Equal(1, stopped);
+        }
+        finally
+        {
+            RunLock.Exit();
+        }
+
+        Assert.False(RunLock.IsBusy);
+        RunLock.RequestStop(); // nothing registered: must be a no-op
+        Assert.Equal(1, stopped);
     }
 
     // ---- Run summary --------------------------------------------------

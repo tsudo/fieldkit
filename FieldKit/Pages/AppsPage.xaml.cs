@@ -24,9 +24,10 @@ public sealed class AppRow : RowViewModel
     /// <summary>True when ticking this row would do something.</summary>
     public bool IsActionable => !IsInstalled || HasUpdate;
 
-    public void ApplyScan(bool installed, WingetUpgrade? upgrade)
+    /// <param name="installed">Null when the scan could not tell what is installed.</param>
+    public void ApplyScan(bool? installed, WingetUpgrade? upgrade)
     {
-        IsInstalled = installed || upgrade is not null;
+        IsInstalled = installed == true || upgrade is not null;
         HasUpdate = upgrade is not null;
         SetState(RunState.Ready, Note);
 
@@ -43,6 +44,9 @@ public sealed class AppRow : RowViewModel
         else
         {
             Meta = "";
+            // Unknown is shown as unknown. Installing an app that is already
+            // there is harmless: winget reports "already installed".
+            if (installed is null) SetPill("Not checked", "Neutral");
         }
 
         CanSelect = IsActionable;
@@ -146,6 +150,13 @@ public partial class AppsPage : UserControl, IPage
             return;
         }
 
+        // The scan runs winget, so it takes the same lock as every other job.
+        if (!RunLock.TryEnter("App scan"))
+        {
+            StatusText.Text = $"The scan will run when {RunLock.Owner} has finished. Choose Scan again then.";
+            return;
+        }
+
         Notice.Visibility = Visibility.Collapsed;
         _scanning = true;
         StatusText.Text = "Checking what's installed. This takes about 20 seconds.";
@@ -156,12 +167,24 @@ public partial class AppsPage : UserControl, IPage
             var scan = await _winget.ScanAsync(CancellationToken.None);
             ApplyScan(scan);
             _scanned = true;
-            StatusText.Text = $"Scanned at {DateTime.Now:HH:mm}";
+
+            if (scan.Problem is null)
+            {
+                StatusText.Text = $"Scanned at {DateTime.Now:HH:mm}";
+            }
+            else
+            {
+                NoticeText.Text = scan.Problem;
+                Notice.Visibility = Visibility.Visible;
+                StatusText.Text = $"Scanned at {DateTime.Now:HH:mm}, with a problem";
+            }
         }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException
-                                       or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            _logger.Log($"[Apps] Scan failed: {ex.Message}", "ERROR");
+            // Everything lands here on purpose. This method is started without
+            // being awaited, so an exception that escaped would vanish and leave
+            // the page saying "Checking..." for the rest of the session.
+            _logger.Log($"[Apps] Scan failed: {ex}", "ERROR");
             NoticeText.Text = $"The scan did not finish: {ex.Message} Choose Scan again to retry.";
             Notice.Visibility = Visibility.Visible;
             StatusText.Text = "Scan failed";
@@ -169,18 +192,22 @@ public partial class AppsPage : UserControl, IPage
         finally
         {
             _scanning = false;
+            RunLock.Exit();
             UpdateActionButton();
         }
     }
 
     private void ApplyScan(WingetScan scan)
     {
-        var upgrades = scan.Upgrades.ToDictionary(upgrade => upgrade.Id, StringComparer.OrdinalIgnoreCase);
+        // winget can list one package twice (two installed versions); keep the first.
+        var upgrades = scan.Upgrades
+            .GroupBy(upgrade => upgrade.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in _catalogRows)
         {
             upgrades.TryGetValue(row.Id, out var upgrade);
-            row.ApplyScan(scan.InstalledIds.Contains(row.Id), upgrade);
+            row.ApplyScan(scan.InstalledIds?.Contains(row.Id), upgrade);
         }
 
         var catalogIds = _catalogRows.Select(row => row.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -211,6 +238,10 @@ public partial class AppsPage : UserControl, IPage
     private void Bundle_Click(object sender, RoutedEventArgs e)
     {
         var key = (string)((RadioButton)sender).Tag;
+
+        // A bundle selects rows across the whole list, so show the whole list:
+        // nothing should be selected where the filter is hiding it.
+        SearchBox.Text = "";
 
         _applyingBundle = true;
         foreach (var row in AllRows)
@@ -296,16 +327,17 @@ public partial class AppsPage : UserControl, IPage
             return;
         }
 
-        var lines = selected.Select(row => $"  {(row.IsInstalled ? "Update" : "Install")}  {row.Name}");
+        var lines = selected.Select(row => $"  {(row.IsInstalled ? "Update" : "Install")}  {row.Name}  [{row.Id}]");
         var message = $"FieldKit will make these changes through winget:\n\n{string.Join("\n", lines)}\n\n" +
-                      "Installers run silently, but a few still show their own prompts. Continue?";
+                      "Installers run silently, though a few still show their own prompts. winget is told to accept " +
+                      "each package's licence and source agreements on this PC owner's behalf. Continue?";
         if (MessageBox.Show(Window.GetWindow(this), message, "Confirm app changes",
                 MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
         {
             return;
         }
 
-        if (!RunLock.TryEnter("App install"))
+        if (!RunLock.TryEnter("App install", () => Stop_Click(this, new RoutedEventArgs())))
         {
             StatusText.Text = $"Waiting: {RunLock.Owner} is running";
             return;
@@ -357,6 +389,13 @@ public partial class AppsPage : UserControl, IPage
                 catch (TimeoutException ex)
                 {
                     outcome = new WingetOutcome(false, -1, ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    // One app failing to start must not strand its row at "Running"
+                    // or abandon the apps after it.
+                    _logger.Log($"[Apps] {row.Name} could not be started: {ex}", "ERROR");
+                    outcome = new WingetOutcome(false, -1, $"Could not start winget: {ex.Message}");
                 }
 
                 if (outcome.Succeeded)

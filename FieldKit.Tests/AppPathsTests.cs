@@ -147,6 +147,39 @@ public sealed class AppPathsTests : IDisposable
     }
 
     [Fact]
+    public void A_folder_is_as_new_as_the_newest_file_inside_it()
+    {
+        var old = DateTime.Now.AddDays(-10);
+        var workDir = Path.Combine(_root, "installer-work");
+        var deep = Path.Combine(workDir, "a", "b");
+        Directory.CreateDirectory(deep);
+        var fresh = Path.Combine(deep, "in-use.tmp");
+        File.WriteAllText(fresh, "x");
+
+        // Make every folder look old, the way an installer's working folder does.
+        Directory.SetLastWriteTime(deep, old);
+        Directory.SetLastWriteTime(Path.Combine(workDir, "a"), old);
+        Directory.SetLastWriteTime(workDir, old);
+
+        Assert.True(FieldKit.Tasks.ClearTemporaryFilesTask.NewestWriteUnder(workDir) > DateTime.Now.AddMinutes(-5));
+
+        File.SetLastWriteTime(fresh, old);
+        Assert.True(FieldKit.Tasks.ClearTemporaryFilesTask.NewestWriteUnder(workDir) < DateTime.Now.AddDays(-9));
+    }
+
+    [Fact]
+    public void A_program_is_recognised_by_its_header_not_its_name()
+    {
+        var disguised = Path.Combine(_root, "readme.txt");
+        File.Copy(typeof(AppPathsTests).Assembly.Location, disguised);
+        var plain = Path.Combine(_root, "notes.exe");
+        File.WriteAllText(plain, "just text");
+
+        Assert.True(SupportKitService.IsWindowsProgram(disguised));
+        Assert.False(SupportKitService.IsWindowsProgram(plain));
+    }
+
+    [Fact]
     public void A_path_that_cannot_be_read_counts_as_a_link()
     {
         Assert.True(AppPaths.IsReparsePoint(Path.Combine(_root, "does-not-exist")));

@@ -20,88 +20,122 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
     {
         return Task.Run(() =>
         {
-            var tempPaths = new[]
-            {
-                Environment.GetEnvironmentVariable("TEMP"),
-                Environment.GetEnvironmentVariable("TMP"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")
-            }
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => Path.GetFullPath(path!))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            // Known-folder paths, not the TEMP and TMP environment variables: a
+            // per-user environment value must not choose what an elevated process deletes.
+            var userTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp");
+            var sharedTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp");
 
             var cutoff = DateTime.Now - MinimumAge;
-            int removed = 0, inUse = 0, recent = 0, links = 0;
+            var counts = new Counts();
 
-            foreach (var path in tempPaths)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!Directory.Exists(path))
-                    continue;
+            // The elevated account's own temp: only that account and administrators can write here.
+            Clean(userTemp, includeDirectories: true, dryRun, cutoff, counts, ct);
 
-                foreach (var entry in EnumerateEntries(path))
-                {
-                    ct.ThrowIfCancellationRequested();
-                    try
-                    {
-                        var attrs = File.GetAttributes(entry);
+            // C:\Windows\Temp is writable by every user. Deleting a folder tree there
+            // by path can be redirected mid-walk by swapping a subfolder for a
+            // junction, which would turn this into deleting an arbitrary folder as
+            // administrator. So only loose files are removed here; folders are left.
+            Clean(sharedTemp, includeDirectories: false, dryRun, cutoff, counts, ct);
 
-                        // Never follow symlinks, junctions, or reparse points —
-                        // a planted junction could redirect deletion to system directories.
-                        if (attrs.HasFlag(FileAttributes.ReparsePoint))
-                        {
-                            links++;
-                            continue;
-                        }
+            Log($"{(dryRun ? "Would remove" : "Removed")} {counts.Removed} item(s). Left alone: {counts.Recent} newer than 24 hours, " +
+                $"{counts.InUse} in use, {counts.Links} link(s), {counts.SharedFolders} folder(s) in the shared Windows temp.", "INFO");
 
-                        var isDirectory = attrs.HasFlag(FileAttributes.Directory);
-                        var lastWrite = isDirectory ? Directory.GetLastWriteTime(entry) : File.GetLastWriteTime(entry);
-                        if (lastWrite > cutoff)
-                        {
-                            recent++;
-                            continue;
-                        }
-
-                        if (dryRun)
-                        {
-                            removed++;
-                            continue;
-                        }
-
-                        if (isDirectory)
-                        {
-                            Directory.Delete(entry, recursive: true);
-                        }
-                        else
-                        {
-                            if (attrs.HasFlag(FileAttributes.ReadOnly))
-                                File.SetAttributes(entry, attrs & ~FileAttributes.ReadOnly);
-                            File.Delete(entry);
-                        }
-
-                        removed++;
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        // Locked or protected: expected for anything a running program holds open.
-                        inUse++;
-                    }
-                }
-            }
-
-            Log($"{(dryRun ? "Would remove" : "Removed")} {removed} item(s). Left alone: {recent} newer than 24 hours, {inUse} in use, {links} link(s).",
-                "INFO");
-
-            return Summarize(dryRun, removed, inUse, recent);
+            return Summarize(dryRun, counts.Removed, counts.InUse, counts.Recent + counts.SharedFolders);
         }, ct);
     }
 
-    internal static TaskResult Summarize(bool dryRun, int removed, int inUse, int recent)
+    private sealed class Counts
     {
-        var kept = inUse + recent;
-        var keptNote = kept > 0 ? $", {kept} kept (recent or in use)" : "";
+        public int Removed, InUse, Recent, Links, SharedFolders;
+    }
+
+    private static void Clean(string root, bool includeDirectories, bool dryRun, DateTime cutoff, Counts counts, CancellationToken ct)
+    {
+        if (!Directory.Exists(root)) return;
+
+        foreach (var entry in EnumerateEntries(root))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var attrs = File.GetAttributes(entry);
+
+                // Never follow symlinks, junctions, or reparse points.
+                if (attrs.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    counts.Links++;
+                    continue;
+                }
+
+                var isDirectory = attrs.HasFlag(FileAttributes.Directory);
+                if (isDirectory && !includeDirectories)
+                {
+                    counts.SharedFolders++;
+                    continue;
+                }
+
+                var lastWrite = isDirectory ? NewestWriteUnder(entry) : File.GetLastWriteTime(entry);
+                if (lastWrite > cutoff)
+                {
+                    counts.Recent++;
+                    continue;
+                }
+
+                if (dryRun)
+                {
+                    counts.Removed++;
+                    continue;
+                }
+
+                if (isDirectory)
+                {
+                    Directory.Delete(entry, recursive: true);
+                }
+                else
+                {
+                    if (attrs.HasFlag(FileAttributes.ReadOnly))
+                        File.SetAttributes(entry, attrs & ~FileAttributes.ReadOnly);
+                    File.Delete(entry);
+                }
+
+                counts.Removed++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Locked or protected: expected for anything a running program holds open.
+                counts.InUse++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The most recent write anywhere in a folder tree. A folder's own timestamp
+    /// only moves when its direct children are added or removed, so a folder that
+    /// looks old can still hold a file something wrote a minute ago.
+    /// </summary>
+    internal static DateTime NewestWriteUnder(string directory)
+    {
+        var newest = Directory.GetLastWriteTime(directory);
+        var pending = new Stack<string>();
+        pending.Push(directory);
+
+        while (pending.Count > 0)
+        {
+            foreach (var entry in new DirectoryInfo(pending.Pop()).EnumerateFileSystemInfos())
+            {
+                if (entry.LastWriteTime > newest) newest = entry.LastWriteTime;
+                if (entry is DirectoryInfo && !entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    pending.Push(entry.FullName);
+            }
+        }
+
+        return newest;
+    }
+
+    internal static TaskResult Summarize(bool dryRun, int removed, int inUse, int kept)
+    {
+        var left = inUse + kept;
+        var keptNote = left > 0 ? $", {left} kept (recent, in use or shared folders)" : "";
 
         if (dryRun)
             return TaskResult.Ok($"Would remove {removed} item(s){keptNote}");

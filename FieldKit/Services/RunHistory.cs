@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FieldKit.Services;
 
@@ -22,8 +23,10 @@ public sealed record RunSummary(
     string LogFile,
     IReadOnlyList<RunItem> Items)
 {
+    [JsonIgnore]
     public TimeSpan Duration => Finished - Started;
 
+    [JsonIgnore]
     public string CountsText
     {
         get
@@ -37,6 +40,7 @@ public sealed record RunSummary(
         }
     }
 
+    [JsonIgnore]
     public string Tone => Error > 0 ? "Error" : Warning > 0 || Stopped ? "Warn" : "Ok";
 
     public string ToLogText()
@@ -66,8 +70,9 @@ public static class RunHistory
     {
         try
         {
-            var name = $"run-{summary.Started:yyyyMMdd-HHmmss}-{Slug(summary.Kind)}.json";
-            File.WriteAllText(Path.Combine(AppPaths.Logs, name), JsonSerializer.Serialize(summary, Options));
+            // Milliseconds in the name: a preview and a real run can start in the same second.
+            var name = $"run-{summary.Started:yyyyMMdd-HHmmss-fff}-{Slug(summary.Kind)}.json";
+            File.WriteAllText(Path.Combine(AppPaths.Logs, name), Serialize(summary));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -91,7 +96,7 @@ public static class RunHistory
         {
             try
             {
-                var run = JsonSerializer.Deserialize<RunSummary>(File.ReadAllText(file));
+                var run = Deserialize(File.ReadAllText(file));
                 if (run is not null) runs.Add(run);
                 else unreadable++;
             }
@@ -103,6 +108,10 @@ public static class RunHistory
 
         return (runs.OrderByDescending(run => run.Started).ToList(), unreadable);
     }
+
+    internal static string Serialize(RunSummary summary) => JsonSerializer.Serialize(summary, Options);
+
+    internal static RunSummary? Deserialize(string json) => JsonSerializer.Deserialize<RunSummary>(json);
 
     private static string Slug(string value) =>
         new(value.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
