@@ -129,6 +129,16 @@ Future UI goals:
 - show useful summaries without forcing the user into separate screens
 - consider WinUI 3 migration for Mica/Acrylic effects in v2
 
+## Known Gaps
+
+Found in the 2.0 review and not yet fixed:
+
+- **Screen readers.** Row status changes ("Running", "Done", "Failed") are not announced, log lines can't be selected, and an automation client found no elements in the window during testing. This needs a proper accessibility pass.
+- **Non-English Windows.** The list of available updates is read from winget's English text output and may come back empty elsewhere. FieldKit reports a count mismatch when it can detect one.
+- **Shared job runner.** The Maintain, Apps and Support kit pages each carry their own copy of the run, stop and summary logic. One shared runner would remove a class of bugs where one page handles a failure the others miss.
+- **Same-account hardening.** A non-elevated program running as the same administrator account can still interfere with an elevated FieldKit in a few places (the winget alias, the single-file extraction folder, folder deletes in that account's own temp). Windows does not treat this as a security boundary; a handle-based delete and shipping as a zip would close them.
+- **Release signing.** Releases are not code-signed. Each release publishes a SHA-256 instead.
+
 ## Notable Open Questions
 
 - Should connectivity tests live beside maintenance tasks or in a separate module view?

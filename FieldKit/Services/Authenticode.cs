@@ -35,21 +35,82 @@ public static class Authenticode
             using var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
 #pragma warning restore SYSLIB0057
             var organization = certificate.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
-            if (organization.Equals("Microsoft Corporation", StringComparison.Ordinal)
-                || organization.Equals("Microsoft Windows", StringComparison.Ordinal))
+            if (!organization.Equals("Microsoft Corporation", StringComparison.Ordinal)
+                && !organization.Equals("Microsoft Windows", StringComparison.Ordinal))
             {
-                reason = "";
-                return true;
+                reason = $"signed by \"{organization}\", not Microsoft";
+                return false;
             }
 
-            reason = $"signed by \"{organization}\", not Microsoft";
-            return false;
+            // The name alone is not proof: any root this PC trusts could issue a
+            // certificate called "Microsoft Corporation". Require the chain to end
+            // at one of Microsoft's own roots.
+            if (!ChainsToMicrosoftRoot(certificate))
+            {
+                reason = "signed in Microsoft's name, but the certificate does not chain to a Microsoft root";
+                return false;
+            }
+
+            reason = "";
+            return true;
         }
         catch (CryptographicException ex)
         {
             reason = $"signer could not be read ({ex.Message})";
             return false;
         }
+    }
+
+    private static readonly IntPtr CERT_CHAIN_POLICY_MICROSOFT_ROOT = 7;
+
+    // Also accept Microsoft's application-signing roots (for example "Microsoft
+    // Root Certificate Authority 2011"), which sign Sysinternals and most tools.
+    // Without this flag the policy accepts only the Windows product roots.
+    private const uint MICROSOFT_ROOT_CERT_CHAIN_POLICY_CHECK_APPLICATION_ROOT_FLAG = 0x00020000;
+
+    internal static bool ChainsToMicrosoftRoot(X509Certificate2 certificate)
+    {
+        using var chain = new X509Chain();
+        // WinVerifyTrust has already judged validity, timestamp and revocation.
+        // This chain exists only to find the root, and signing certificates are
+        // routinely past their own expiry while the signature stays valid.
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreNotTimeValid;
+        chain.Build(certificate);
+        if (chain.ChainElements.Count == 0) return false;
+
+        var parameters = new CERT_CHAIN_POLICY_PARA
+        {
+            cbSize = (uint)Marshal.SizeOf<CERT_CHAIN_POLICY_PARA>(),
+            dwFlags = MICROSOFT_ROOT_CERT_CHAIN_POLICY_CHECK_APPLICATION_ROOT_FLAG
+        };
+        var status = new CERT_CHAIN_POLICY_STATUS { cbSize = (uint)Marshal.SizeOf<CERT_CHAIN_POLICY_STATUS>() };
+
+        return CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_MICROSOFT_ROOT, chain.ChainContext, ref parameters, ref status)
+               && status.dwError == 0;
+    }
+
+    [DllImport("crypt32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CertVerifyCertificateChainPolicy(
+        IntPtr pszPolicyOID, IntPtr pChainContext, ref CERT_CHAIN_POLICY_PARA pPolicyPara, ref CERT_CHAIN_POLICY_STATUS pPolicyStatus);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CERT_CHAIN_POLICY_PARA
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public IntPtr pvExtraPolicyPara;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CERT_CHAIN_POLICY_STATUS
+    {
+        public uint cbSize;
+        public uint dwError;
+        public int lChainIndex;
+        public int lElementIndex;
+        public IntPtr pvExtraPolicyStatus;
     }
 
     private static int VerifyTrust(string path)

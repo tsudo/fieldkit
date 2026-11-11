@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # These two version with the .NET runtime. The app targets .NET 10 (LTS) and
+    # embeds that runtime, so take 10.0.x patches and skip the next major.
+    ignore:
+      - dependency-name: "System.Management"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "System.ServiceProcess.ServiceController"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/FieldKit.Tests"

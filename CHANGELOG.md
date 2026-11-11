@@ -5,6 +5,23 @@ All notable changes to FieldKit are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- The support kit's signature check now requires the signing certificate to
+  chain to one of Microsoft's own roots. Before, a valid signature in the name
+  "Microsoft Corporation" was enough, which any root trusted by the PC could
+  have issued.
+
+### Changed
+
+- `System.Management` and `System.ServiceProcess.ServiceController` updated
+  from 10.0.11 to 10.0.15. Dependabot is told to skip major versions of these
+  two, so the app stays on the .NET 10 LTS line it ships its runtime from.
+- Test packages updated: xunit 2.9.3, xunit.runner.visualstudio 4.0.1,
+  Microsoft.NET.Test.Sdk 18.11.1.
+
 ## [2.0.0] - 2026-11-11
 
 FieldKit becomes a four-page app: Maintain, Apps, Support kit and Reports.
