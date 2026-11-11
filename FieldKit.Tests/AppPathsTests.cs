@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using FieldKit.Services;
 using Xunit;
 
@@ -51,20 +53,76 @@ public sealed class AppPathsTests : IDisposable
     }
 
     [Fact]
-    public void Clean_tree_has_no_links()
-    {
-        Assert.Null(AppPaths.FindReparsePoint(_root));
-        Assert.False(AppPaths.IsReparsePoint(_root));
-    }
-
-    [Fact]
-    public void Junction_anywhere_in_the_tree_is_found()
+    public void A_junction_is_recognised_and_a_plain_folder_is_not()
     {
         var link = Path.Combine(_root, "Reports", "pc-1", "planted");
         MakeJunction(link, _outside);
 
-        Assert.Equal(link, AppPaths.FindReparsePoint(_root));
         Assert.True(AppPaths.IsReparsePoint(link));
+        Assert.False(AppPaths.IsReparsePoint(_root));
+    }
+
+    // ---- Trust rule for the kit folder -------------------------------
+
+    private static readonly SecurityIdentifier Admins = new(WellKnownSidType.BuiltinAdministratorsSid, null);
+    private static readonly SecurityIdentifier Users = new(WellKnownSidType.BuiltinUsersSid, null);
+    private static readonly SecurityIdentifier AuthenticatedUsers = new(WellKnownSidType.AuthenticatedUserSid, null);
+    private const InheritanceFlags Inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+    [Fact]
+    public void The_security_FieldKit_creates_meets_its_own_trust_rule()
+    {
+        var security = AppPaths.BuildRootSecurity();
+
+        Assert.Equal(Admins, security.GetOwner(typeof(SecurityIdentifier)));
+        Assert.True(security.AreAccessRulesProtected);
+        Assert.True(AppPaths.IsTrusted(security));
+    }
+
+    [Fact]
+    public void A_folder_owned_by_an_ordinary_account_is_not_trusted()
+    {
+        var security = AppPaths.BuildRootSecurity();
+        security.SetOwner(Users);
+
+        Assert.False(AppPaths.IsTrusted(security));
+    }
+
+    [Fact]
+    public void A_folder_that_inherits_its_parents_acl_is_not_trusted()
+    {
+        var security = AppPaths.BuildRootSecurity();
+        security.SetAccessRuleProtection(isProtected: false, preserveInheritance: true);
+
+        Assert.False(AppPaths.IsTrusted(security));
+    }
+
+    [Theory]
+    [InlineData(FileSystemRights.Modify)]
+    [InlineData(FileSystemRights.Write)]
+    [InlineData(FileSystemRights.CreateFiles)]
+    [InlineData(FileSystemRights.CreateDirectories)]
+    [InlineData(FileSystemRights.Delete)]
+    [InlineData(FileSystemRights.DeleteSubdirectoriesAndFiles)]
+    [InlineData(FileSystemRights.ChangePermissions)]
+    [InlineData(FileSystemRights.TakeOwnership)]
+    public void Any_write_right_for_non_administrators_breaks_trust(FileSystemRights rights)
+    {
+        var security = AppPaths.BuildRootSecurity();
+        security.AddAccessRule(new FileSystemAccessRule(AuthenticatedUsers, rights, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+
+        Assert.False(AppPaths.IsTrusted(security));
+    }
+
+    [Fact]
+    public void Read_access_for_non_administrators_keeps_trust()
+    {
+        var security = AppPaths.BuildRootSecurity();
+        security.AddAccessRule(new FileSystemAccessRule(AuthenticatedUsers, FileSystemRights.ReadAndExecute, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+
+        Assert.True(AppPaths.IsTrusted(security));
     }
 
     [Fact]

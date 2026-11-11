@@ -10,15 +10,20 @@ namespace FieldKit.Services;
 ///
 /// FieldKit runs elevated and both writes and deletes here, so the folder is a
 /// privilege boundary. A standard user can create folders at the drive root, and
-/// could plant a junction that points an elevated delete or write at a system
-/// directory. The folder is therefore owned by Administrators with a protected
-/// ACL (Users: read only), an existing folder is only adopted after its ACL has
-/// been locked and its whole tree checked for links, and every subfolder is
-/// checked again at the point of use.
+/// could plant a junction or hard link that points an elevated delete or write
+/// at a system file. The rule is therefore: FieldKit only uses a folder that is
+/// owned by Administrators or SYSTEM and that nobody else can write to. It
+/// creates the folder that way. A folder that exists and does not meet the rule
+/// is never adopted or repaired: it is renamed aside, contents untouched, and a
+/// fresh one is created.
 /// </summary>
 public static class AppPaths
 {
-    public static string Root { get; } = ResolveRoot();
+    // Lazy rather than a field initializer: static fields initialize in file
+    // order, and an initializer here once ran before a field it depended on.
+    private static readonly Lazy<string> LazyRoot = new(ResolveRoot);
+
+    public static string Root => LazyRoot.Value;
     public static string Tools => Path.Combine(Root, "Tools");
     public static string Reports => Path.Combine(Root, "Reports");
 
@@ -44,133 +49,133 @@ public static class AppPaths
         string[] candidates =
         [
             Path.Combine(systemRoot, "FieldKit"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "FieldKit"),
-            Path.Combine(Path.GetTempPath(), "FieldKit")
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "FieldKit")
         ];
 
+        var elevated = SystemInfo.IsRunningAsAdministrator();
         foreach (var candidate in candidates)
         {
-            if (TryPrepare(candidate))
+            if (elevated ? TryPrepareTrusted(candidate) : TryPreparePlain(candidate))
                 return candidate;
         }
 
-        return candidates[^1];
+        // Nothing usable. A per-launch folder in temp keeps the app running; it
+        // is new and randomly named, so nothing could have been planted in it.
+        var fallback = Path.Combine(Path.GetTempPath(), $"FieldKit-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(fallback);
+        return fallback;
     }
 
-    private static bool TryPrepare(string path)
+    /// <summary>Elevated: end with a folder that meets the trust rule, or report failure.</summary>
+    private static bool TryPrepareTrusted(string path)
     {
         try
         {
             var info = new DirectoryInfo(path);
 
-            if (SystemInfo.IsRunningAsAdministrator())
+            if (info.Exists && !(IsTrustedFolder(info)))
             {
-                if (info.Exists)
-                {
-                    if (IsReparsePoint(path)) return false;
-
-                    // Lock the folder first, then inspect it: once the ACL is in
-                    // place nothing new can be planted by a standard user.
-                    info.SetAccessControl(BuildRootSecurity());
-                    if (FindReparsePoint(path) is not null) return false;
-                    ResetChildSecurity(info);
-                }
-                else
-                {
-                    info.Create(BuildRootSecurity());
-                }
-            }
-            else
-            {
-                // Not elevated (UI development only): there is no privilege to
-                // protect, and an unelevated process cannot assign this owner.
-                // The next elevated launch adopts the folder through the branch above.
-                info.Create();
-                if (IsReparsePoint(path)) return false;
+                // Rename, don't inspect or fix. Moving a directory entry never
+                // follows a link, and the contents stay available to whoever
+                // made them.
+                Directory.Move(path, $"{path}.untrusted-{DateTime.Now:yyyyMMdd-HHmmss}");
+                info.Refresh();
             }
 
-            var probe = Path.Combine(path, $".write-test-{Guid.NewGuid():N}");
-            File.WriteAllText(probe, "");
-            File.Delete(probe);
-            return true;
+            if (!info.Exists)
+                info.Create(BuildRootSecurity());
+
+            // Create() returns quietly if something appeared at the path first,
+            // so the result is checked rather than assumed.
+            info.Refresh();
+            if (!IsTrustedFolder(info)) return false;
+
+            return CanWrite(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
-                                       or InvalidOperationException or IdentityNotMappedException
-                                       or PrivilegeNotHeldException or System.Security.SecurityException)
+        catch (Exception ex) when (IsFileSystemOrSecurityFailure(ex))
         {
             return false;
         }
     }
 
-    private static readonly SecurityIdentifier Administrators = new(WellKnownSidType.BuiltinAdministratorsSid, null);
+    /// <summary>
+    /// Not elevated (UI development only): there is no privilege to protect and
+    /// an unelevated process cannot create an Administrators-owned folder. The
+    /// next elevated launch will rename this folder aside and make its own.
+    /// </summary>
+    private static bool TryPreparePlain(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            return !IsReparsePoint(path) && CanWrite(path);
+        }
+        catch (Exception ex) when (IsFileSystemOrSecurityFailure(ex))
+        {
+            return false;
+        }
+    }
+
+    private static bool CanWrite(string path)
+    {
+        var probe = Path.Combine(path, $".write-test-{Guid.NewGuid():N}");
+        File.WriteAllText(probe, "");
+        File.Delete(probe);
+        return true;
+    }
+
+    private static bool IsFileSystemOrSecurityFailure(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or NotSupportedException
+            or InvalidOperationException or IdentityNotMappedException
+            or PrivilegeNotHeldException or System.Security.SecurityException;
+
+    private static bool IsTrustedFolder(DirectoryInfo info) =>
+        !info.Attributes.HasFlag(FileAttributes.ReparsePoint)
+        && IsTrusted(info.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access));
 
     /// <summary>Owner Administrators; SYSTEM and Administrators full control; Users read and run. Nothing inherited from the parent.</summary>
-    private static DirectorySecurity BuildRootSecurity()
+    internal static DirectorySecurity BuildRootSecurity()
     {
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
         const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
         var security = new DirectorySecurity();
-        security.SetOwner(Administrators);
+        security.SetOwner(administrators);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.AddAccessRule(new FileSystemAccessRule(Administrators,
+        security.AddAccessRule(new FileSystemAccessRule(administrators,
             FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
-        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+        security.AddAccessRule(new FileSystemAccessRule(system,
             FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
-        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+        security.AddAccessRule(new FileSystemAccessRule(users,
             FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
         return security;
     }
 
     /// <summary>
-    /// Gives everything already inside an adopted folder the same owner and an
-    /// inherit-only ACL. Without this, whoever created a child still owns it and
-    /// could grant themselves write access again.
+    /// The trust rule: owned by Administrators or SYSTEM, takes nothing from its
+    /// parent's ACL, and grants no one else anything beyond read and execute.
     /// </summary>
-    private static void ResetChildSecurity(DirectoryInfo root)
+    internal static bool IsTrusted(DirectorySecurity security)
     {
-        foreach (var entry in root.EnumerateFileSystemInfos())
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        bool IsPrivileged(IdentityReference? identity) =>
+            identity is SecurityIdentifier sid && (sid.Equals(administrators) || sid.Equals(system));
+
+        if (!IsPrivileged(security.GetOwner(typeof(SecurityIdentifier)))) return false;
+        if (!security.AreAccessRulesProtected) return false;
+
+        const FileSystemRights readOnly = FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize;
+        foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
         {
-            if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new IOException($"{entry.FullName} is a link.");
-
-            if (entry is DirectoryInfo directory)
-            {
-                var security = new DirectorySecurity();
-                security.SetOwner(Administrators);
-                security.SetAccessRuleProtection(isProtected: false, preserveInheritance: false);
-                directory.SetAccessControl(security);
-                ResetChildSecurity(directory);
-            }
-            else if (entry is FileInfo file)
-            {
-                var security = new FileSecurity();
-                security.SetOwner(Administrators);
-                security.SetAccessRuleProtection(isProtected: false, preserveInheritance: false);
-                file.SetAccessControl(security);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Returns the first symlink or junction found anywhere under <paramref name="root"/>,
-    /// or null. Links are reported, never followed.
-    /// </summary>
-    public static string? FindReparsePoint(string root)
-    {
-        var pending = new Stack<string>();
-        pending.Push(root);
-
-        while (pending.Count > 0)
-        {
-            foreach (var entry in new DirectoryInfo(pending.Pop()).EnumerateFileSystemInfos())
-            {
-                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                    return entry.FullName;
-                if (entry is DirectoryInfo)
-                    pending.Push(entry.FullName);
-            }
+            if (rule.AccessControlType != AccessControlType.Allow) continue;
+            if (IsPrivileged(rule.IdentityReference)) continue;
+            if ((rule.FileSystemRights & ~readOnly) != 0) return false;
         }
 
-        return null;
+        return true;
     }
 
     /// <summary>
