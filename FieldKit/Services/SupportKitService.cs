@@ -70,11 +70,11 @@ public sealed class SupportKitService
 
         try
         {
-            Directory.CreateDirectory(AppPaths.Tools);
-            if (AppPaths.IsReparsePoint(AppPaths.Tools))
-                return new KitOutcome(false, "The Tools folder is a link; refusing to write into it");
-
+            // Throws if Tools is a link. Leftovers from an earlier attempt are
+            // removed as entries, never followed, before anything is written.
+            AppPaths.EnsureSubfolder("Tools");
             DeleteDirectoryIfPresent(staging);
+            DeleteFileIfPresent(zipPath);
 
             _logger.Log($"[Support kit] Downloading {tool.Name} from {DownloadBase}{tool.ZipName}", "INFO");
             using (var client = new HttpClient { Timeout = TimeSpan.FromMinutes(20) })
@@ -140,8 +140,10 @@ public sealed class SupportKitService
     /// <summary>Creates a folder for one snapshot, named for this PC and the time.</summary>
     public static string CreateSnapshotFolder()
     {
-        var folder = Path.Combine(AppPaths.Reports, $"{Environment.MachineName}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        var folder = Path.Combine(AppPaths.EnsureSubfolder("Reports"), $"{Environment.MachineName}-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(folder);
+        if (AppPaths.IsReparsePoint(folder))
+            throw new IOException($"{folder} is a link. FieldKit will not write through it.");
         return folder;
     }
 
@@ -302,6 +304,8 @@ public sealed class SupportKitService
         try
         {
             var url = new Uri(AppPaths.Root).AbsoluteUri;
+            // Remove whatever is there first so the write can never go through a planted link.
+            if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath);
             File.WriteAllText(ShortcutPath, $"[InternetShortcut]{Environment.NewLine}URL={url}{Environment.NewLine}");
             return new KitOutcome(true, "Shortcut added to the desktop for all users");
         }
@@ -325,13 +329,11 @@ public sealed class SupportKitService
             {
                 var added = 0;
                 using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-                foreach (var folder in new[] { AppPaths.Reports, AppPaths.Logs })
+                foreach (var folder in new[] { AppPaths.Reports, Path.Combine(AppPaths.Root, "Logs") })
                 {
-                    if (!Directory.Exists(folder) || AppPaths.IsReparsePoint(folder)) continue;
-                    foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                    foreach (var file in EnumerateFilesWithoutFollowingLinks(folder))
                     {
                         ct.ThrowIfCancellationRequested();
-                        if (AppPaths.IsReparsePoint(file)) continue;
 
                         var entry = archive.CreateEntry(Path.GetRelativePath(AppPaths.Root, file).Replace('\\', '/'));
                         // ReadWrite sharing: the current session's log is still open for writing.
@@ -385,10 +387,24 @@ public sealed class SupportKitService
             foreach (var zip in Directory.EnumerateFiles(AppPaths.Root, "FieldKit-*.zip"))
                 if (DeleteFileIfPresent(zip)) removed++; else problems++;
 
-            foreach (var file in Directory.EnumerateFiles(AppPaths.Logs))
+            // Not AppPaths.Logs: that would recreate the folder, and it throws on a link.
+            var logs = Path.Combine(AppPaths.Root, "Logs");
+            if (Directory.Exists(logs))
             {
-                if (file.Equals(_logger.LogFilePath, StringComparison.OrdinalIgnoreCase)) continue;
-                if (DeleteFileIfPresent(file)) removed++; else problems++;
+                if (AppPaths.IsReparsePoint(logs))
+                {
+                    // A link where the log folder should be: remove the link itself
+                    // and touch nothing behind it.
+                    if (DeleteDirectoryIfPresent(logs)) removed++; else problems++;
+                }
+                else
+                {
+                    foreach (var file in Directory.EnumerateFiles(logs))
+                    {
+                        if (file.Equals(_logger.LogFilePath, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (DeleteFileIfPresent(file)) removed++; else problems++;
+                    }
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -405,6 +421,28 @@ public sealed class SupportKitService
         return problems == 0
             ? new KitOutcome(true, "Kit removed. This session's log is kept until FieldKit closes.")
             : new KitOutcome(false, $"{problems} item(s) could not be removed. Close any kit tools that are open and try again.");
+    }
+
+    /// <summary>
+    /// Every regular file under <paramref name="root"/>. A folder or file that is
+    /// a symlink or junction is skipped, so the walk cannot leave the kit folder.
+    /// </summary>
+    internal static IEnumerable<string> EnumerateFilesWithoutFollowingLinks(string root)
+    {
+        if (!Directory.Exists(root) || AppPaths.IsReparsePoint(root))
+            yield break;
+
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            foreach (var entry in new DirectoryInfo(pending.Pop()).EnumerateFileSystemInfos())
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
+                if (entry is DirectoryInfo) pending.Push(entry.FullName);
+                else yield return entry.FullName;
+            }
+        }
     }
 
     private bool DeleteDirectoryIfPresent(string path)

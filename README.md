@@ -58,7 +58,7 @@ The catalog is [`FieldKit/Catalog/apps.json`](FieldKit/Catalog/apps.json). It mi
 
 ## Support kit
 
-Stages troubleshooting tools and a snapshot of the PC in one folder, `C:\FieldKit`.
+Stages troubleshooting tools and a snapshot of the PC in one folder, `C:\FieldKit`. Only administrators can write to it; other users can read and run what's inside.
 
 - **Tools:** Autoruns, Process Explorer, Process Monitor, TCPView, or the full Sysinternals suite. FieldKit downloads them from Microsoft when you build the kit, because the Sysinternals licence does not allow redistribution. Every downloaded program must carry a valid Microsoft signature or nothing from that download is kept.
 - **Snapshot reports:** system summary, network configuration, installed apps, startup items, and recent error events, as text files.

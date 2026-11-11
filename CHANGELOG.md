@@ -31,6 +31,18 @@ FieldKit becomes a four-page app: Maintain, Apps, Support kit and Reports.
   result logic. CI runs them.
 - `--page maintain|apps|kit|reports` opens FieldKit on that page.
 
+### Security
+
+- The kit folder is created owned by Administrators with a protected ACL (SYSTEM
+  and Administrators full control, Users read-only). A folder that already
+  exists is adopted only after its ACL is locked, every child is re-owned, and
+  the whole tree is confirmed free of symlinks and junctions. FieldKit runs
+  elevated and deletes in this folder, so a standard user must not be able to
+  plant a link in it.
+- Subfolders are checked for links again at each use, the zip walk never
+  follows a link, and a link found where the log folder should be is removed as
+  a link without touching its target.
+
 ### Changed
 
 - One theme file (`FieldKit/Themes/Theme.xaml`) now holds every colour and
