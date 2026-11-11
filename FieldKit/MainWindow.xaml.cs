@@ -81,6 +81,11 @@ public partial class MainWindow : Window
         win.ShowDialog();
     }
 
+    private void PreviewOnlyCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        UpdateSummary();
+    }
+
     // ================================================================
     // PRESETS
     // ================================================================
@@ -165,13 +170,16 @@ public partial class MainWindow : Window
 
         ClearLogPlaceholder();
         _runCts = new CancellationTokenSource();
-        var dryRun = false;
+        var dryRun = PreviewOnlyCheckBox.IsChecked == true;
+        var startedAt = DateTime.Now;
         var startFree = TryGetSystemDriveFreeSpace();
         var rebootRecommended = false;
         int success = 0, warning = 0, error = 0, skipped = 0;
+        var operationResults = new List<RunOperationResult>();
 
         SetRunningState(true);
         _logger.Log($"Run started. Preview: {(dryRun ? "ON" : "OFF")}. Log: {_logger.LogFilePath}", "INFO");
+        LogMultiline(SystemInfo.BuildRunManifest(selected.Select(vm => vm.Name), _logger.LogFilePath), "INFO");
 
         var completed = false;
         try
@@ -194,6 +202,7 @@ public partial class MainWindow : Window
                 }
 
                 rebootRecommended |= result.RebootRecommended;
+                operationResults.Add(new RunOperationResult(vm.Name, result.State, result.Summary));
                 switch (result.State)
                 {
                     case TaskResultState.Success: success++; vm.Status = "Success"; break;
@@ -241,26 +250,40 @@ public partial class MainWindow : Window
         }
 
         if (completed)
-            ShowCompletionSummary(dryRun, success, warning, error, skipped,
-                startFree, TryGetSystemDriveFreeSpace(), rebootRecommended);
+        {
+            var summary = BuildCompletionSummary(dryRun, startedAt, DateTime.Now,
+                success, warning, error, skipped, startFree, TryGetSystemDriveFreeSpace(),
+                rebootRecommended, operationResults);
+            LogMultiline(summary, warning > 0 || error > 0 ? "WARN" : "OK");
+            ShowCompletionSummary(summary, warning, error);
+        }
     }
 
-    private void ShowCompletionSummary(bool dryRun, int success, int warning, int error, int skipped,
-        double? startFree, double? endFree, bool rebootRecommended)
+    private static string BuildCompletionSummary(bool dryRun, DateTime startedAt, DateTime finishedAt,
+        int success, int warning, int error, int skipped, double? startFree, double? endFree,
+        bool rebootRecommended, IReadOnlyList<RunOperationResult> operationResults)
     {
         var sb = new StringBuilder();
         sb.AppendLine(dryRun ? "Preview complete." : "Run complete.");
+        sb.AppendLine();
+        sb.AppendLine($"Started:    {startedAt:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Finished:   {finishedAt:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Elapsed:    {FormatDuration(finishedAt - startedAt)}");
         sb.AppendLine();
         sb.AppendLine($"Successful: {success}");
         sb.AppendLine($"Warnings: {warning}");
         sb.AppendLine($"Errors: {error}");
         if (skipped > 0) sb.AppendLine($"Skipped: {skipped}");
+        sb.AppendLine();
+        sb.AppendLine("Operation results:");
+        foreach (var result in operationResults)
+            sb.AppendLine($"  - {result.Name}: {result.State} - {result.Summary}");
 
         if (startFree.HasValue && endFree.HasValue)
         {
             var delta = Math.Round(endFree.Value - startFree.Value, 2);
             sb.AppendLine();
-            sb.AppendLine($"System drive: {startFree.Value:F2} GB \u2192 {endFree.Value:F2} GB ({delta:+0.00;-0.00;0.00} GB)");
+            sb.AppendLine($"System drive: {startFree.Value:F2} GB -> {endFree.Value:F2} GB ({delta:+0.00;-0.00;0.00} GB)");
         }
 
         if (rebootRecommended)
@@ -270,15 +293,20 @@ public partial class MainWindow : Window
         }
 
         sb.AppendLine();
-        sb.AppendLine($"Log: {_logger.LogFilePath}");
+        return sb.ToString();
+    }
 
-        MessageBox.Show(this, sb.ToString(), "FieldKit",
+    private void ShowCompletionSummary(string summary, int warning, int error)
+    {
+        var message = summary + Environment.NewLine + $"Log: {_logger.LogFilePath}";
+        MessageBox.Show(this, message, "FieldKit",
             MessageBoxButton.OK, warning > 0 || error > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
     }
 
     private void SetRunningState(bool running)
     {
         RunButton.IsEnabled = !running;
+        PreviewOnlyCheckBox.IsEnabled = !running;
         TaskGrid.IsEnabled = !running;
     }
 
@@ -305,6 +333,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private void LogMultiline(string text, string level)
+    {
+        foreach (var line in text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+            _logger.Log(line, level);
+    }
+
+    private static string FormatDuration(TimeSpan elapsed)
+    {
+        if (elapsed.TotalHours >= 1)
+            return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m {elapsed.Seconds}s";
+        if (elapsed.TotalMinutes >= 1)
+            return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+        return $"{Math.Max(1, (int)Math.Round(elapsed.TotalSeconds))}s";
+    }
+
     private static double? TryGetSystemDriveFreeSpace()
     {
         try
@@ -316,3 +359,5 @@ public partial class MainWindow : Window
         catch { return null; }
     }
 }
+
+internal sealed record RunOperationResult(string Name, TaskResultState State, string Summary);

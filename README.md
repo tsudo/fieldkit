@@ -51,7 +51,7 @@ The source code is right here — read it, build it yourself, or check the relea
 | Windows Update | Triggers a Windows Update scan | 1-5 min |
 | Update Microsoft Office | Click-to-Run Office updates | Quick |
 | Update Store Apps | Microsoft Store update scan | Quick |
-| Update Installed Apps | Runs `winget upgrade --all` | 1-5 min |
+| Update Installed Apps | Scans `winget` updates, then asks which packages to install | 1-5 min |
 
 ### System Health
 
@@ -75,9 +75,11 @@ One-click focus modes:
 
 1. Launch `FieldKit.exe` and approve the UAC prompt
 2. Pick a preset or select operations manually
-3. Click **Run Selected**
-4. Watch the status column and log
-5. Review the summary and reboot if recommended
+3. Leave **Preview Only** enabled to scan/log without applying changes, or clear it when ready to run
+4. Click **Run Selected**
+5. Review and confirm any available app updates before package installation
+6. Watch the status column and log
+7. Review the summary and reboot if recommended
 
 ## Safer Defaults
 
@@ -96,6 +98,8 @@ The [PC Maintenance Guide](PC-Maintenance-Guide.md) walks through each operation
 
 Each run writes a timestamped log to `%TEMP%\FieldKit-YYYYMMDD-HHMMSS.log`. Falls back to the app directory if `%TEMP%` is unavailable.
 
+Logs include a run manifest with FieldKit version, Windows build, admin state, uptime, pending reboot state, system drive free space, selected operations, and log path. Completed runs also write the same outcome summary shown in the app, including per-operation results and disk-space delta when available.
+
 ## Limitations
 
 Some Windows maintenance operations are best-effort — Microsoft doesn't expose a single stable API for everything.
@@ -103,7 +107,7 @@ Some Windows maintenance operations are best-effort — Microsoft doesn't expose
 - Windows Update may continue running in the background after the app reports complete
 - Store updates depend on a management interface that isn't present on every system
 - Office updates only work for Click-to-Run installs
-- `winget` must already be installed via App Installer
+- `winget` must already be installed via App Installer; FieldKit can scan updates without installing them, and installs only packages confirmed in the update picker
 - Repair operations may recommend a reboot before results are reliable
 
 FieldKit reports these cases clearly in the status column and log instead of failing silently.

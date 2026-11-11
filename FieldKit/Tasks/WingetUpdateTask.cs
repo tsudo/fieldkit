@@ -1,8 +1,12 @@
+using System.Windows;
+using FieldKit.Services;
+
 namespace FieldKit.Tasks;
 
 public sealed class WingetUpdateTask : MaintenanceTask
 {
     private const int WingetNoApplicableUpdates = unchecked((int)0x8A150021);
+    private readonly WingetUpdateService _wingetUpdateService = new();
 
     public WingetUpdateTask() : base(
         "Update Installed Apps",
@@ -29,27 +33,93 @@ public sealed class WingetUpdateTask : MaintenanceTask
         if (winget is null)
             return TaskResult.Warn("winget is not installed. Install App Installer from Microsoft Store.");
 
-        if (dryRun)
-        {
-            var listResult = await RunCommandAsync(winget, "upgrade", ct, line => !string.IsNullOrWhiteSpace(line));
-            return listResult.ExitCode == 0
-                ? TaskResult.Ok("Listed available winget upgrades")
-                : TaskResult.Warn("winget upgrade list returned a non-zero exit code");
-        }
+        Log("Scanning available app updates with winget. No packages will be installed before confirmation.", "INFO");
+        var listResult = await RunCommandAsync(winget, "upgrade", ct, line => !string.IsNullOrWhiteSpace(line));
+        var candidates = _wingetUpdateService.ParseUpgradeCandidates(listResult.AllLines);
 
-        Log("Some installers may still show prompts even when silent mode is requested.", "WARN");
-        var result = await RunCommandAsync(
-            winget,
-            "upgrade --all --silent --accept-source-agreements --accept-package-agreements",
-            ct,
-            line => !string.IsNullOrWhiteSpace(line));
-
-        if (result.ExitCode == 0)
-            return TaskResult.Ok("winget upgrades completed");
-        if (result.ExitCode == WingetNoApplicableUpdates)
+        if (listResult.ExitCode == WingetNoApplicableUpdates || candidates.Count == 0)
             return TaskResult.Ok("No applicable winget updates were found");
 
-        return TaskResult.Warn($"winget returned exit code {result.ExitCode}");
+        Log($"{candidates.Count} winget upgrade candidate(s) found.", "INFO");
+        foreach (var candidate in candidates)
+            Log($"Candidate: {candidate.Name} [{candidate.Id}] {candidate.InstalledVersion} -> {candidate.AvailableVersion}", "INFO");
+
+        if (dryRun)
+            return TaskResult.Ok($"Listed {candidates.Count} available winget upgrade(s)");
+
+        var selection = await ShowSelectionWindowAsync(candidates, ct);
+        if (selection is null)
+            return TaskResult.Skipped($"Scanned {candidates.Count} app update(s); user cancelled");
+
+        if (selection.Count == 0)
+            return TaskResult.Ok($"Scanned {candidates.Count} app update(s); no packages installed");
+
+        Log($"Installing {selection.Count} selected app update(s).", "WARN");
+
+        var succeeded = 0;
+        var failed = 0;
+        foreach (var candidate in selection)
+        {
+            ct.ThrowIfCancellationRequested();
+            var sw = Stopwatch.StartNew();
+            Log($"Starting {candidate.Name} [{candidate.Id}] {candidate.InstalledVersion} -> {candidate.AvailableVersion}", "INFO");
+
+            var result = await RunCommandAsync(
+                winget,
+                WingetUpdateService.BuildUpgradeArguments(candidate.Id),
+                ct,
+                line => !string.IsNullOrWhiteSpace(line));
+
+            sw.Stop();
+            if (result.ExitCode == 0 || result.ExitCode == WingetNoApplicableUpdates)
+            {
+                succeeded++;
+                Log($"Completed {candidate.Name} [{candidate.Id}] in {FormatDuration(sw.Elapsed)}", "OK");
+            }
+            else
+            {
+                failed++;
+                Log($"Failed {candidate.Name} [{candidate.Id}] in {FormatDuration(sw.Elapsed)}. winget exit code {result.ExitCode}", "WARN");
+            }
+        }
+
+        return failed == 0
+            ? TaskResult.Ok($"Installed {succeeded} selected app update(s)")
+            : TaskResult.Warn($"Installed {succeeded} selected app update(s); {failed} failed");
+    }
+
+    private static Task<IReadOnlyList<WingetPackageCandidate>?> ShowSelectionWindowAsync(
+        IReadOnlyList<WingetPackageCandidate> candidates,
+        CancellationToken ct)
+    {
+        var app = Application.Current;
+        if (app is null)
+            return Task.FromResult<IReadOnlyList<WingetPackageCandidate>?>([]);
+
+        return app.Dispatcher.InvokeAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            var window = new WingetUpdateWindow(candidates)
+            {
+                Owner = app.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive)
+            };
+
+            var accepted = window.ShowDialog() == true;
+            if (!accepted)
+                return null;
+
+            return window.ApplyUpdates
+                ? window.SelectedCandidates
+                : [];
+        }).Task;
+    }
+
+    private static string FormatDuration(TimeSpan elapsed)
+    {
+        if (elapsed.TotalMinutes >= 1)
+            return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+
+        return $"{Math.Max(1, (int)Math.Round(elapsed.TotalSeconds))}s";
     }
 
     private static string? ResolveWingetPath()

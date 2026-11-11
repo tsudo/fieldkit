@@ -37,7 +37,7 @@ public class StoreUpdateTask : MaintenanceTask
                     var retVal = result?["ReturnValue"];
                     Log($"Store update scan triggered (return value: {retVal}).", "OK");
                     Log("  Updates install in the background. Open the Store to verify.", "INFO");
-                    return TaskResult.Ok("Store update scan started");
+                    return TaskResult.Ok("Store update scan triggered; installation continues in the background");
                 }
 
                 Log("MDM class found but no instances returned.", "WARN");

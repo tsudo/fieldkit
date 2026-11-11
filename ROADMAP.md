@@ -38,6 +38,11 @@ Why:
 
 Add a workflow for installing or updating a core app set.
 
+Current progress:
+
+- app updates now scan first and require a package-selection confirmation before installation
+- update results are logged per selected package instead of hiding behind one bulk winget run
+
 Candidate features:
 
 - create a Ninite URL or bundle for common app installs
@@ -55,6 +60,11 @@ Why:
 
 Make outcome reporting more visual and easier to scan.
 
+Current progress:
+
+- each run now writes a starting manifest and durable completion summary to the log
+- command output that reports installer failures, access-denied errors, in-use files, or blocked upgrades is promoted to warning severity
+
 Candidate improvements:
 
 - show last run results in dashboard cards
@@ -65,6 +75,10 @@ Candidate improvements:
 ### 4. Diagnostics Export
 
 Make it easier to hand results to another person.
+
+Current progress:
+
+- System Info now uses assembly metadata for the FieldKit version and includes network adapter details, gateways, DHCP, DNS, and IP address summaries
 
 Candidate improvements:
 

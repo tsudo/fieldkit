@@ -26,8 +26,8 @@ public sealed class WindowsUpdateTask : MaintenanceTask
 
         var result = await RunCommandAsync(usoClient, "ScanInstallWait", ct, line => !string.IsNullOrWhiteSpace(line));
         if (result.ExitCode == 0)
-            return TaskResult.Ok("Windows Update scan started. Review results in Settings.", rebootRecommended: true);
+            return TaskResult.Ok("Windows Update scan/install trigger completed. Review results in Settings.", rebootRecommended: true);
 
-        return TaskResult.Warn("Windows Update trigger returned a non-zero exit code");
+        return TaskResult.Warn($"Windows Update trigger returned exit code {result.ExitCode}; open Settings > Windows Update to review status");
     }
 }

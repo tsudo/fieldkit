@@ -7,6 +7,45 @@
         WindowStartupLocation="CenterScreen"
         Icon="fieldkit.ico">
 
+    <Window.Resources>
+        <Style x:Key="FieldKitColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#2D3442"/>
+            <Setter Property="Foreground" Value="#F4F7FB"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="8,7"/>
+            <Setter Property="BorderBrush" Value="#3F485A"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+
+        <Style x:Key="FieldKitRowStyle" TargetType="DataGridRow">
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Foreground" Value="#F0F3F7"/>
+            <Setter Property="Background" Value="#252A36"/>
+            <Style.Triggers>
+                <Trigger Property="AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="#20242F"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#315E92"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FieldKitCellStyle" TargetType="DataGridCell">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F0F3F7"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#315E92"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -20,7 +59,14 @@
                 <Button x:Name="RunButton" Content="Run Selected"
                         Click="RunButton_Click"
                         Padding="20,8" FontWeight="SemiBold" FontSize="13"
-                        Margin="0,0,16,0"/>
+                        Margin="0,0,14,0"/>
+                <CheckBox x:Name="PreviewOnlyCheckBox"
+                          Content="Preview Only"
+                          VerticalAlignment="Center"
+                          Foreground="#F0F3F7"
+                          Margin="0,0,16,0"
+                          Checked="PreviewOnlyCheckBox_Changed"
+                          Unchecked="PreviewOnlyCheckBox_Changed"/>
                 <Button Content="Open Log" Click="OpenLogButton_Click"
                         Padding="14,6" Margin="0,0,8,0"/>
                 <Button Content="System Info" Click="SystemInfoButton_Click"
@@ -72,6 +118,15 @@
                               HeadersVisibility="Column"
                               GridLinesVisibility="None"
                               BorderThickness="0"
+                              Background="#20242F"
+                              Foreground="#F0F3F7"
+                              RowBackground="#252A36"
+                              AlternatingRowBackground="#20242F"
+                              AlternationCount="2"
+                              HorizontalGridLinesBrush="#3F485A"
+                              ColumnHeaderStyle="{StaticResource FieldKitColumnHeaderStyle}"
+                              RowStyle="{StaticResource FieldKitRowStyle}"
+                              CellStyle="{StaticResource FieldKitCellStyle}"
                               VerticalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

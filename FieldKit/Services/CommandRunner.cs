@@ -41,7 +41,7 @@ public static class CommandRunner
 
             output.Add(e.Data);
             if (outputFilter?.Invoke(e.Data) ?? true)
-                log?.Invoke(e.Data, "INFO");
+                log?.Invoke(e.Data, ClassifyOutputLine(e.Data, "INFO"));
         };
 
         process.ErrorDataReceived += (_, e) =>
@@ -54,7 +54,7 @@ public static class CommandRunner
 
             error.Add(e.Data);
             if (outputFilter?.Invoke(e.Data) ?? true)
-                log?.Invoke(e.Data, "WARN");
+                log?.Invoke(e.Data, ClassifyOutputLine(e.Data, "WARN"));
         };
 
         if (!process.Start())
@@ -79,6 +79,22 @@ public static class CommandRunner
         await Task.WhenAll(stdoutDone.Task, stderrDone.Task);
 
         return new CommandResult(process.ExitCode, output, error);
+    }
+
+    private static string ClassifyOutputLine(string line, string defaultLevel)
+    {
+        if (line.Contains("access is denied", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("installer failed", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("exit code", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("non-zero", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("failed", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("blocked", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("currently in use", StringComparison.OrdinalIgnoreCase))
+        {
+            return "WARN";
+        }
+
+        return defaultLevel;
     }
 }
 
