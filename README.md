@@ -9,11 +9,9 @@ Portable Windows maintenance in a single exe. No installer, no bloat, no telemet
 
 FieldKit runs cleanup, updates and repair steps, installs a short list of trusted apps, and stages a troubleshooting kit on the PC you're working on. One window, four pages.
 
-> This README describes 2.0, which is in preview on `main`. The latest release is still 1.1.0; see the [changelog](CHANGELOG.md).
-
 ## Download
 
-Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page.
+Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page. See the [changelog](CHANGELOG.md) for what changed.
 
 - Windows 10 or 11, 64-bit
 - No installer: run it from anywhere
@@ -23,7 +21,7 @@ Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fiel
 
 FieldKit is not code-signed, so Windows SmartScreen may flag it the first time you run it. Click **More info**, then **Run anyway**.
 
-The source is here. Read it, build it yourself, or check the release against the build instructions below.
+The source is here: read it or build it yourself. Each release's notes give the SHA-256 of its `FieldKit.exe`, which is built by this repository's CI. To check a download, run `Get-FileHash FieldKit.exe` in PowerShell and compare.
 
 ## Maintain
 
