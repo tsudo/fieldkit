@@ -31,7 +31,7 @@ public static class AppPaths
     /// because tools and logs will not be where the user expects.
     /// </summary>
     public static bool IsTemporaryRoot =>
-        Root.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase);
+        Path.GetFileName(Root).StartsWith("FieldKit-", StringComparison.OrdinalIgnoreCase);
     public static string Tools => Path.Combine(Root, "Tools");
     public static string Reports => Path.Combine(Root, "Reports");
 
@@ -69,7 +69,9 @@ public static class AppPaths
 
         // Nothing usable. A per-launch folder in temp keeps the app running; it
         // is new and randomly named, so nothing could have been planted in it.
-        var fallback = Path.Combine(Path.GetTempPath(), $"FieldKit-{Guid.NewGuid():N}");
+        // Known-folder path, not Path.GetTempPath(): that one reads the TEMP variable.
+        var userTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp");
+        var fallback = Path.Combine(userTemp, $"FieldKit-{Guid.NewGuid():N}");
         Directory.CreateDirectory(fallback);
         return fallback;
     }
@@ -177,15 +179,51 @@ public static class AppPaths
         if (!IsPrivileged(security.GetOwner(typeof(SecurityIdentifier)))) return false;
         if (!security.AreAccessRulesProtected) return false;
 
+        return OnlyTheseCanWrite(security, alsoAllowed: null);
+    }
+
+    /// <summary>
+    /// True when nobody except Administrators, SYSTEM and (optionally) one named
+    /// account is granted more than read and execute. Used to decide whether a
+    /// folder is safe to delete trees from: if anyone else can write there, they
+    /// can swap a subfolder for a junction while an elevated delete is walking it.
+    /// </summary>
+    internal static bool OnlyTheseCanWrite(FileSystemSecurity security, SecurityIdentifier? alsoAllowed)
+    {
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+
         const FileSystemRights readOnly = FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize;
         foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
         {
             if (rule.AccessControlType != AccessControlType.Allow) continue;
-            if (IsPrivileged(rule.IdentityReference)) continue;
+            if (rule.IdentityReference is SecurityIdentifier sid
+                && (sid.Equals(administrators) || sid.Equals(system) || (alsoAllowed is not null && sid.Equals(alsoAllowed))))
+            {
+                continue;
+            }
             if ((rule.FileSystemRights & ~readOnly) != 0) return false;
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Whether a folder's own ACL lets only Administrators, SYSTEM and the
+    /// current account write to it. False when the ACL cannot be read.
+    /// </summary>
+    public static bool IsWritableOnlyByThisAccount(string directory)
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var security = new DirectoryInfo(directory).GetAccessControl(AccessControlSections.Access);
+            return OnlyTheseCanWrite(security, identity.User);
+        }
+        catch (Exception ex) when (IsFileSystemOrSecurityFailure(ex))
+        {
+            return false;
+        }
     }
 
     /// <summary>

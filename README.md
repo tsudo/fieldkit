@@ -32,8 +32,8 @@ Eleven steps in four groups. Pick a preset or tick steps by hand; they run top t
 | Group | Step | What it does | Time |
 |-------|------|--------------|------|
 | Prepare | Create restore point | System restore point before other changes. Says so when Windows skips it because one exists from the last 24 hours | Under 1 min |
-| Clean up | Clear temporary files | Removes temp files older than 24 hours; files in use are left alone | Under 1 min |
-| Clean up | Empty recycle bin | Deletes what's in the Recycle Bin | Under 1 min |
+| Clean up | Clear temporary files | Removes temp files and folders with nothing written in the last 24 hours; files in use are left alone. In the shared `C:\Windows\Temp` only loose files are removed | Under 1 min |
+| Clean up | Empty recycle bin | Deletes what's in the Recycle Bin of the account FieldKit runs as | Under 1 min |
 | Clean up | Clear network cache | Flushes the DNS client cache | Under 1 min |
 | Clean up | Turn on auto-cleanup | Enables Storage Sense, monthly | Under 1 min |
 | Update | Windows Update | Lists pending updates and opens Settings so you can install them | 1-2 min |
@@ -50,7 +50,8 @@ Presets: **Quick tune-up** (the default selection), **Cleanup**, **Updates**, **
 Install and update software through `winget`. FieldKit scans once when you open the page, then shows a curated catalog with each app marked as installed, not installed, or update available, plus any other installed apps that have updates.
 
 - Tick what you want, or use a bundle: **Essentials**, **Keith's picks**, **All updates**
-- Nothing installs until you press the button and confirm the list
+- Nothing installs until you press the button and confirm the list. winget is told to accept each package's licence and source agreements
+- If winget can't say what is installed, apps show "Not checked" instead of being treated as missing
 - Each app is installed by exact winget ID from the community `winget` source, one at a time, with its own result
 - Apps that winget can't install (browser extensions, account-tied installers, Store-only apps) are listed with a link instead
 
@@ -60,7 +61,7 @@ The catalog is [`FieldKit/Catalog/apps.json`](FieldKit/Catalog/apps.json). It mi
 
 Stages troubleshooting tools and a snapshot of the PC in one folder, `C:\FieldKit`. Only administrators can write to it; other users can read and run what's inside.
 
-- **Tools:** Autoruns, Process Explorer, Process Monitor, TCPView, or the full Sysinternals suite. FieldKit downloads them from Microsoft when you build the kit, because the Sysinternals licence does not allow redistribution. Every downloaded program must carry a valid Microsoft signature or nothing from that download is kept.
+- **Tools:** Autoruns, Process Explorer, Process Monitor, TCPView, or the full Sysinternals suite. FieldKit downloads them from Microsoft when you build the kit, because the Sysinternals licence does not allow redistribution. Every Windows program in a download must carry a valid Microsoft signature or nothing from that download is kept. Help files and anything else that can't be verified are removed, so the tools come without their `.chm` help.
 - **Snapshot reports:** system summary, network configuration, installed apps, startup items, and recent error events, as text files.
 - **Zip for sharing** packs the reports and logs (not the tools) for handing to someone else. The reports contain the PC's name, serial number and network addresses; read them before you send them.
 - **Remove kit** deletes the tools, reports, zips, earlier logs and the desktop shortcut.
@@ -84,6 +85,9 @@ Some Windows maintenance operations are best-effort. Microsoft does not expose o
 - Office updates only work for Click-to-Run installs.
 - `winget` must already be installed (App Installer). It is a per-user app, so if a different administrator account approved the elevation prompt, FieldKit may not find it. FieldKit shows a notice when it is running as a different account from the one signed in.
 - "Silent" installers sometimes still show their own prompts.
+- The list of available updates is read from winget's English text output. On a non-English Windows it may come back empty; FieldKit reports a mismatch when it can detect one.
+- Per-user steps act on the account FieldKit runs as. If someone else's administrator account approved the elevation prompt, that means their temp files, Recycle Bin and Storage Sense, and FieldKit says so.
+- Pending Windows updates show as "Check", not "Done", because installing them is still up to you.
 - Building the support kit needs an internet connection.
 - Repair steps may ask for a restart before their results are reliable.
 

@@ -116,6 +116,33 @@ public sealed class AppPathsTests : IDisposable
     }
 
     [Fact]
+    public void Write_access_for_one_named_account_can_be_allowed_and_no_other()
+    {
+        var me = Users; // stands in for "the current account"
+        var security = new DirectorySecurity();
+        security.AddAccessRule(new FileSystemAccessRule(Admins, FileSystemRights.FullControl, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(me, FileSystemRights.FullControl, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+
+        Assert.True(AppPaths.OnlyTheseCanWrite(security, me));
+        Assert.False(AppPaths.OnlyTheseCanWrite(security, alsoAllowed: null));
+
+        // A sandbox or service account with Modify: trees must not be deleted here.
+        security.AddAccessRule(new FileSystemAccessRule(AuthenticatedUsers, FileSystemRights.Modify, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+        Assert.False(AppPaths.OnlyTheseCanWrite(security, me));
+    }
+
+    [Fact]
+    public void A_link_anywhere_in_an_unpacked_download_is_detected()
+    {
+        Assert.False(SupportKitService.ContainsLink(_root));
+        MakeJunction(Path.Combine(_root, "Reports", "pc-1", "planted"), _outside);
+        Assert.True(SupportKitService.ContainsLink(_root));
+    }
+
+    [Fact]
     public void Read_access_for_non_administrators_keeps_trust()
     {
         var security = AppPaths.BuildRootSecurity();

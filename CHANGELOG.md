@@ -43,6 +43,22 @@ FieldKit becomes a four-page app: Maintain, Apps, Support kit and Reports.
 - Subfolders are checked for links again at each use, the zip walk never
   follows a link, and a link found where the log folder should be is removed as
   a link without touching its target.
+- Clear temporary files no longer deletes folder trees in `C:\Windows\Temp`.
+  Any user can write there, and a folder swapped for a junction partway through
+  a delete would have had its target emptied with administrator rights. Only
+  loose files are removed from the shared temp; folder trees are removed only
+  from the elevated account's own temp. This also affected 1.x.
+- Downloaded Sysinternals archives are filtered by content. Every Windows
+  program in the archive, whatever its extension, must be Microsoft-signed or
+  the download is rejected; `.txt` files are kept; everything else (help files,
+  scripts, shortcuts) is removed.
+- winget is run only when its alias is the reparse point Windows creates.
+  PowerShell steps load modules only from the PowerShell install folder, and
+  temp folders come from known-folder paths rather than environment variables.
+- Closing FieldKit during a run now stops the job and waits for its summary.
+  Before, the window closed and DISM or an installer carried on unwatched.
+- Releases can only be built with the administrator manifest: the development
+  switch that removes it applies to Debug builds alone.
 
 ### Changed
 
@@ -75,6 +91,20 @@ FieldKit becomes a four-page app: Maintain, Apps, Support kit and Reports.
   `--exact`.
 - winget output was decoded with the wrong encoding.
 - The licence dialog showed "v1.0" regardless of version.
+- A failed winget scan looked like a clean one. Exit codes are now read, an
+  unknown installed state shows as "Not checked" instead of "not installed",
+  and FieldKit says so when winget announces more updates than it could read.
+- Results that claimed too much: pending Windows updates, a Store request the
+  Store refused, and a Recycle Bin emptied for the administrator account rather
+  than the signed-in user now show as "Check", not "Done". A failed event-log
+  query is no longer written up as "no errors", and a timeout is no longer
+  labelled as the Stop button.
+- A temp folder was judged by its own timestamp, which only changes when its
+  direct children do. Its age is now the newest write anywhere inside it.
+- A row could stay at "Running" after an unexpected failure, and the Apps page
+  could stay on "Checking" for the whole session.
+- The Recycle Bin step treated any error text containing "empty" as "already
+  empty".
 
 ### Removed
 

@@ -96,6 +96,9 @@ public sealed class SupportKitService
             // rejected. Plain .txt files stay. Everything else is removed: help
             // files, scripts and shortcuts cannot be signed, and a DLL placed
             // beside a signed tool would be loaded by it.
+            if (ContainsLink(staging))
+                return Reject(staging, "The download unpacked to something unexpected; nothing was kept");
+
             var executables = new List<string>();
             var dropped = 0;
             foreach (var file in EnumerateFilesWithoutFollowingLinks(staging).ToList())
@@ -156,6 +159,25 @@ public sealed class SupportKitService
         {
             DeleteFileIfPresent(zipPath);
         }
+    }
+
+    /// <summary>
+    /// True when anything under the folder is a symlink or junction. The file
+    /// walk skips links, so a link would otherwise go unverified into the kit.
+    /// </summary>
+    internal static bool ContainsLink(string root)
+    {
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            foreach (var entry in new DirectoryInfo(pending.Pop()).EnumerateFileSystemInfos())
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) return true;
+                if (entry is DirectoryInfo) pending.Push(entry.FullName);
+            }
+        }
+        return false;
     }
 
     /// <summary>True when the file starts with the "MZ" header every Windows executable, DLL and driver has.</summary>

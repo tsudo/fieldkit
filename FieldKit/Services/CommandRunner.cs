@@ -135,9 +135,11 @@ public static class CommandRunner
     {
         var ps = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
         // Modules load only from the Windows PowerShell install folder, so a
-        // module of the same name in the user's Documents cannot shadow a cmdlet.
+        // module in the user's Documents cannot shadow a cmdlet. Plain string
+        // concatenation on purpose: a cmdlet such as Join-Path would itself be
+        // auto-loaded through the old module path before the pin took effect.
         const string preamble =
-            "$env:PSModulePath = Join-Path $PSHOME 'Modules'; $ProgressPreference='SilentlyContinue'; ";
+            "$env:PSModulePath = $PSHOME + '\\Modules'; $ProgressPreference='SilentlyContinue'; ";
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(preamble + script));
         return RunAsync(ps,
             $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -OutputFormat Text -EncodedCommand {encoded}",

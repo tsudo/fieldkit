@@ -28,8 +28,14 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
             var cutoff = DateTime.Now - MinimumAge;
             var counts = new Counts();
 
-            // The elevated account's own temp: only that account and administrators can write here.
-            Clean(userTemp, includeDirectories: true, dryRun, cutoff, counts, ct);
+            // Folder trees are deleted only where nobody but this account and
+            // administrators can write. That is the default for a profile's temp,
+            // but software can widen it (sandbox accounts are a real example), and
+            // then it gets the same loose-files-only treatment as the shared temp.
+            var userTempIsPrivate = Services.AppPaths.IsWritableOnlyByThisAccount(userTemp);
+            if (!userTempIsPrivate)
+                Log($"Other accounts can write to {userTemp}, so only loose files are removed there.", "INFO");
+            Clean(userTemp, includeDirectories: userTempIsPrivate, dryRun, cutoff, counts, ct);
 
             // C:\Windows\Temp is writable by every user. Deleting a folder tree there
             // by path can be redirected mid-walk by swapping a subfolder for a
@@ -38,7 +44,7 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
             Clean(sharedTemp, includeDirectories: false, dryRun, cutoff, counts, ct);
 
             Log($"{(dryRun ? "Would remove" : "Removed")} {counts.Removed} item(s). Left alone: {counts.Recent} newer than 24 hours, " +
-                $"{counts.InUse} in use, {counts.Links} link(s), {counts.SharedFolders} folder(s) in the shared Windows temp.", "INFO");
+                $"{counts.InUse} in use, {counts.Links} link(s), {counts.SharedFolders} folder(s) that other accounts can write to.", "INFO");
 
             return Summarize(dryRun, counts.Removed, counts.InUse, counts.Recent + counts.SharedFolders);
         }, ct);
@@ -68,7 +74,9 @@ public sealed class ClearTemporaryFilesTask : MaintenanceTask
                 }
 
                 var isDirectory = attrs.HasFlag(FileAttributes.Directory);
-                if (isDirectory && !includeDirectories)
+                // A folder whose own ACL lets someone else write gets the same
+                // treatment as the shared temp, wherever it sits.
+                if (isDirectory && (!includeDirectories || !Services.AppPaths.IsWritableOnlyByThisAccount(entry)))
                 {
                     counts.SharedFolders++;
                     continue;
