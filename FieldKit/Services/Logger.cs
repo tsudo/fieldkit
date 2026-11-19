@@ -17,23 +17,39 @@ public class Logger : IDisposable
     /// <summary>True once a line could not be written to the file (disk full, file removed).</summary>
     public bool WriteFailed => _writeFailed;
 
-    public Logger()
+    public Logger() : this($"FieldKit-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.log") { }
+
+    /// <summary>For CLI progress forwarding; update checks and installs each own their durable log.</summary>
+    public static Logger ForProgress() => new(null);
+
+    internal Logger CreateUpdateLog()
     {
-        string logFileName = $"FieldKit-{DateTime.Now:yyyyMMdd-HHmmss}.log";
+        var run = new Logger($"FieldKit-Update-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.log", kitOnly: true);
+        run.LogWritten += (entry, level) => LogWritten?.Invoke(entry, level);
+        return run;
+    }
+
+    private Logger(string? logFileName, bool kitOnly = false)
+    {
+        if (logFileName is null)
+        {
+            _logFilePath = "";
+            return;
+        }
         var candidates = new List<string>();
 
         // AppPaths.Logs is outside %TEMP% on purpose: Clear Temporary Files used
         // to trip over the open log and delete the logs of earlier runs.
         try { candidates.Add(Path.Combine(AppPaths.Logs, logFileName)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, logFileName));
+        if (!kitOnly) candidates.Add(Path.Combine(AppContext.BaseDirectory, logFileName));
 
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             try
             {
                 // FileShare.ReadWrite lets "Zip for sharing" read the live log.
-                var stream = new FileStream(candidate, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                var stream = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
                 _writer = new StreamWriter(stream) { AutoFlush = true };
                 _logFilePath = candidate;
                 return;
@@ -46,7 +62,7 @@ public class Logger : IDisposable
             }
         }
 
-        _logFilePath = candidates.Last();
+        _logFilePath = candidates.LastOrDefault() ?? Path.Combine(AppPaths.Root, "Logs", logFileName);
         _writeFailed = true;
     }
 

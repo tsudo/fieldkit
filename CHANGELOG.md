@@ -5,6 +5,15 @@ All notable changes to FieldKit are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-18
+
+- Install apps separates the four main choices, technician tools and optional picks. Arq's official installer is available under Keith's picks.
+- Tools & repair adds PC health and read-only startup comparisons. Settings groups DNS and reversible Storage Sense changes.
+
+- Updates is the start page. Windows and winget share one scan, with separate results, selective app upgrades, restart status and run history. Office and Store updates are available under More update options.
+- About includes the license, disclaimer, repository and a manual release check.
+- Install FieldKit saves a portable copy, launch shortcuts and a PowerShell update launcher. GUI and CLI update runs use the same machine preferences, logs and history.
+
 ## [2.0.1] - 2026-11-11
 
 ### Security

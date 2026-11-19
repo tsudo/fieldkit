@@ -21,7 +21,7 @@
                         <TextBlock Text="No runs recorded yet" FontSize="13.5" FontWeight="SemiBold"
                                    Foreground="{StaticResource Fk.Text.Primary}"/>
                         <TextBlock Style="{StaticResource Fk.RowDetail}"
-                                   Text="Run something from Maintain, Apps or Support kit and it shows up here."/>
+                                   Text="Checks, updates, installs and maintenance runs appear here."/>
                     </StackPanel>
                 </Border>
 

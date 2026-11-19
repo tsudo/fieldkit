@@ -191,11 +191,24 @@ public class WingetServiceTests
     }
 
     [Fact]
+    public void Winget_path_uses_only_the_registered_App_Installer_package_directory()
+    {
+        const string package = "Microsoft.DesktopAppInstaller_1.2.3.4_x64__8wekyb3d8bbwe";
+        var installed = System.IO.Path.Combine(@"C:\Program Files\WindowsApps", package);
+        Assert.Equal(System.IO.Path.Combine(installed, "winget.exe"), WingetPackage.GetExecutablePath(package, installed));
+        Assert.Null(WingetPackage.GetExecutablePath(package, @"C:\Users\example\Documents\AppInstaller"));
+        Assert.Null(WingetPackage.GetExecutablePath(package, installed + ".old"));
+        Assert.Null(WingetPackage.GetExecutablePath("Other.Package_1.2.3.4_x64__8wekyb3d8bbwe", installed));
+    }
+
+    [Fact]
     public void Package_arguments_address_one_exact_id()
     {
         var args = WingetService.BuildPackageArguments("install", "Notepad++.Notepad++");
 
-        Assert.StartsWith("install --id \"Notepad++.Notepad++\" --exact --silent", args);
+        Assert.StartsWith("install --id \"Notepad++.Notepad++\" --exact", args);
+        Assert.Contains("--no-upgrade", args);
+        Assert.DoesNotContain("--no-upgrade", WingetService.BuildPackageArguments("upgrade", "Notepad++.Notepad++"));
         Assert.Contains("--source winget", args);
         Assert.Contains("--disable-interactivity", args);
     }

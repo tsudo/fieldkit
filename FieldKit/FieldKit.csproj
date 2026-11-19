@@ -17,7 +17,7 @@
     <ApplicationIcon>fieldkit.ico</ApplicationIcon>
     <AssemblyName>FieldKit</AssemblyName>
     <RootNamespace>FieldKit</RootNamespace>
-    <Version>2.0.1</Version>
+    <Version>2.1.0</Version>
     <Authors>Keith S. Crawford</Authors>
     <Product>FieldKit</Product>
     <Description>Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.</Description>
@@ -36,7 +36,10 @@
 
   <ItemGroup>
     <Resource Include="fieldkit.ico" />
+    <EmbeddedResource Include="Disclaimer.txt" LogicalName="FieldKit.Disclaimer.txt" />
+    <EmbeddedResource Include="..\LICENSE" LogicalName="FieldKit.License.txt" />
     <EmbeddedResource Include="Catalog\apps.json" LogicalName="FieldKit.Catalog.apps.json" />
+    <EmbeddedResource Include="..\FieldKit-Update.ps1" LogicalName="FieldKit.UpdateLauncher.ps1" />
   </ItemGroup>
 
   <ItemGroup>

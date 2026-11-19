@@ -7,14 +7,14 @@
 
 Portable Windows maintenance in a single exe. No installer, no bloat, no telemetry.
 
-FieldKit runs cleanup, updates and repair steps, installs a short list of trusted apps, and stages a troubleshooting kit on the PC you're working on. One window, four pages.
+FieldKit opens on **Updates**. Check Windows and installed apps together, install the updates you choose, and review the last run. Install apps, Tools & repair, Support kit, and Reports are available in the sidebar.
 
 ## Download
 
 Grab the latest `FieldKit.exe` from the [Releases](https://github.com/tsudo/fieldkit/releases) page. See the [changelog](CHANGELOG.md) for what changed.
 
 - Windows 10 or 11, 64-bit
-- No installer: run it from anywhere
+- Run the portable exe from anywhere. To keep it on the PC, open **Support kit → Install FieldKit**. This saves the exe in the displayed support folder (normally `C:\FieldKit`) and adds **Launch FieldKit** to that folder, the shared desktop and the Start menu. Running Install again from a newer portable copy refreshes it.
 - Requires administrator privileges at launch
 
 ### SmartScreen warning
@@ -23,9 +23,27 @@ FieldKit is not code-signed, so Windows SmartScreen may flag it the first time y
 
 The source is here: read it or build it yourself. Each release's notes give the SHA-256 of its `FieldKit.exe`, which is built by this repository's CI. To check a download, run `Get-FileHash FieldKit.exe` in PowerShell and compare.
 
-## Maintain
+## About FieldKit
 
-Eleven steps in four groups. Pick a preset or tick steps by hand; they run top to bottom, and each row shows its own result and time. **Stop** ends the current step and skips the rest. **Preview only** reports what each step would do without changing anything.
+The **About** page shows the running FieldKit version, disclaimer and MIT license. Choose **Check for FieldKit updates** to compare this build with the latest stable release on GitHub. Open **Releases on GitHub** to review the notes and download a release.
+
+## Command-line updates
+
+From an administrator PowerShell in the installed FieldKit folder, run `.\FieldKit-Update.ps1`. The launcher uses the adjacent FieldKit.exe and the same update service as the GUI. It installs assigned Windows software updates and upgrades eligible apps from the winget source, accepting the relevant licence agreements. Use `-Only Windows` or `-Only Apps` for one source. Use `-WhatIf` to preview the command without contacting either source. Review the printed log path and exit code after a run.
+
+## Updates
+
+Check Windows Update and winget, review the results, then apply all eligible updates or choose individual app updates. The page shows the latest check, update history and restart status. Office Click-to-Run and Microsoft Store actions are under **More update options**.
+
+## Tools & repair
+
+**PC health** reads the registered antivirus, Defender mode and signatures, active firewall profiles, available system-drive space, Windows disk-health and optimization status, BitLocker protection, startup changes and pending restart. Each result has its own status and follow-up action. Hardware or provider data that Windows cannot supply is shown as unavailable. BitLocker recovery keys are never requested.
+
+**Startup review** uses the Microsoft-signed Autorunsc executable from the support kit. Get Autoruns here or from Support kit, then select **Scan startup**. The first full scan establishes a baseline. Subsequent scans compare account, entry, path, publisher and state, with sign-in entries first and scheduled tasks, services and drivers under Advanced. Task Manager provides measured startup impact. If Autorunsc is unavailable, the basic report lists Run keys and startup folders. The full snapshot stays in the administrator-only Recovery folder, outside the support ZIP.
+
+### Cleanup & repair
+
+Choose cleanup and troubleshooting steps as needed. Preview the selection before making changes.
 
 | Group | Step | What it does | Time |
 |-------|------|--------------|------|
@@ -33,21 +51,15 @@ Eleven steps in four groups. Pick a preset or tick steps by hand; they run top t
 | Clean up | Clear temporary files | Removes temp files and folders with nothing written in the last 24 hours; files in use are left alone. In the shared `C:\Windows\Temp` only loose files are removed | Under 1 min |
 | Clean up | Empty recycle bin | Deletes what's in the Recycle Bin of the account FieldKit runs as | Under 1 min |
 | Clean up | Clear network cache | Flushes the DNS client cache | Under 1 min |
-| Clean up | Turn on auto-cleanup | Enables Storage Sense, monthly | Under 1 min |
-| Update | Windows Update | Lists pending updates and opens Settings so you can install them | 1-2 min |
-| Update | Microsoft Office | Triggers a Click-to-Run update | Under 1 min |
-| Update | Microsoft Store apps | Asks the Store to check for updates | Under 1 min |
 | Repair | Check system files | `sfc /scannow` | 10-30 min |
 | Repair | Repair Windows image | `DISM /Online /Cleanup-Image /RestoreHealth` | 10-30 min |
 | Repair | Optimize drives | Retrim SSDs, defragment hard disks | 1-5 min |
 
-Presets: **Quick tune-up** (the default selection), **Cleanup**, **Updates**, **Deep repair**, **Everything**. Repair steps are never selected by default.
+## Install apps
 
-## Apps
+Choose Firefox, Bitwarden, 7-Zip or VLC individually. The Firefox extension link opens uBlock Origin. **Technician tools** holds Everything and Notepad++. Expand **Keith's picks** for Mullvad VPN, Obsidian, Proton Drive, 1Password, Yubico Authenticator, SumatraPDF, Backblaze, and the official Arq Windows installer. With Arq, create a backup plan and choose its destination after installation.
 
-Install and update software through `winget`. FieldKit scans once when you open the page, then shows a curated catalog with each app marked as installed, not installed, or update available, plus any other installed apps that have updates.
-
-- Tick what you want, or use a bundle: **Essentials**, **Keith's picks**, **All updates**
+- Select the apps you want to install and confirm the list.
 - Nothing installs until you press the button and confirm the list. winget is told to accept each package's licence and source agreements
 - If winget can't say what is installed, apps show "Not checked" instead of being treated as missing
 - Each app is installed by exact winget ID from the community `winget` source, one at a time, with its own result
@@ -59,10 +71,12 @@ The catalog is [`FieldKit/Catalog/apps.json`](FieldKit/Catalog/apps.json). It mi
 
 Stages troubleshooting tools and a snapshot of the PC in one folder, `C:\FieldKit`. Only administrators can write to it; other users can read and run what's inside.
 
+Building the kit from the portable release also saves the running build as `FieldKit.exe` in that folder. The executable stays available after **Remove kit**.
+
 - **Tools:** Autoruns, Process Explorer, Process Monitor, TCPView, or the full Sysinternals suite. FieldKit downloads them from Microsoft when you build the kit, because the Sysinternals licence does not allow redistribution. Every Windows program in a download must carry a valid Microsoft signature or nothing from that download is kept. Help files and anything else that can't be verified are removed, so the tools come without their `.chm` help.
 - **Snapshot reports:** system summary, network configuration, installed apps, startup items, and recent error events, as text files.
 - **Zip for sharing** packs the reports and logs (not the tools) for handing to someone else. The reports contain the PC's name, serial number and network addresses; read them before you send them.
-- **Remove kit** deletes the tools, reports, zips, earlier logs and the desktop shortcut.
+- **Remove kit** removes tools, reports, zips, earlier logs and the support-folder shortcut. It preserves the installed application, its launch shortcuts, update launcher and machine preferences.
 
 ## Reports
 
@@ -72,20 +86,34 @@ Every maintenance run, app install and kit build is listed with its result, dura
 
 Logs are written to `C:\FieldKit\Logs\FieldKit-YYYYMMDD-HHMMSS.log`. If the system drive root is not writable, FieldKit uses `%ProgramData%\FieldKit`.
 
-Each run logs a manifest (FieldKit version, Windows build, elevation, uptime, pending reboot, free space, selected steps) and ends with the same summary the app shows.
+Update checks and installations each write a log and a JSON summary to the Logs folder. Runs from the CLI appear in the same history as GUI runs.
+
+## Machine preferences
+
+**Settings → Network** shows DNS for the selected adapter. Choose Automatic (DHCP), Cloudflare malware filtering, or a NextDNS profile. For NextDNS, use the setup link and enter the six-character profile ID. Apply saves the original DNS configuration, updates the supported IPv4 and IPv6 stacks and tests the selected provider. A failed verification triggers rollback. **Restore previous settings** recovers the original configuration even after switching presets. FieldKit asks for separate confirmation on detected managed or VPN connections. Adapter changes require Windows support for per-interface DNS encryption. Unsupported or unreadable configurations are reported in the page.
+
+**Settings → Storage Sense** shows the affected account, enable state and schedule. Enabling preserves the existing cleanup preferences. Undo restores the previous enable value and registry type, or removes the value if it was originally absent. If another program subsequently changes the value, FieldKit reports the conflict. Recovery records live under the protected Recovery folder and are excluded from the support ZIP.
+
+Install FieldKit or run the update service to create `config.json` in the displayed kit folder (usually `C:\FieldKit`). Edit it as an administrator. The GUI and CLI reload it for updates. Package exclusions use exact winget IDs, case-insensitively. Update logs and summaries are retained for 90 days by default. Set `logRetentionDays` to 0 to keep them indefinitely. The support ZIP includes reports and logs and leaves this configuration out.
+
+```json
+{
+  "skipAppIds": [],
+  "logRetentionDays": 90
+}
+```
 
 ## Limitations
 
 Some Windows maintenance operations are best-effort. Microsoft does not expose one stable API for everything.
 
-- Windows Update: FieldKit reports what is pending and opens Settings. It does not install Windows updates itself.
+- The update runner uses the configured Windows Update source and honors system policy. Updates requiring interactive input may need attention in Windows Settings.
 - Store updates depend on a management interface that isn't present on every system.
 - Office updates only work for Click-to-Run installs.
 - `winget` must already be installed (App Installer). It is a per-user app, so if a different administrator account approved the elevation prompt, FieldKit may not find it. FieldKit shows a notice when it is running as a different account from the one signed in.
 - "Silent" installers sometimes still show their own prompts.
 - The list of available updates is read from winget's English text output. On a non-English Windows it may come back empty; FieldKit reports a mismatch when it can detect one.
 - Per-user steps act on the account FieldKit runs as. If someone else's administrator account approved the elevation prompt, that means their temp files, Recycle Bin and Storage Sense, and FieldKit says so.
-- Pending Windows updates show as "Check", not "Done", because installing them is still up to you.
 - Building the support kit needs an internet connection.
 - Repair steps may ask for a restart before their results are reliable.
 
@@ -115,7 +143,7 @@ Output: `publish/FieldKit.exe`. See [CONTRIBUTING.md](CONTRIBUTING.md) for runni
 
 ## Privacy
 
-FieldKit does not collect data or send telemetry. It makes network requests only for what you start: Windows Update, Office and Store update checks, `winget`, and Sysinternals downloads from `download.sysinternals.com`.
+FieldKit does not collect data or send telemetry. Network operations include Windows Update, Office and Store update checks, winget inventory and package operations, Sysinternals downloads from Microsoft, and the manual FieldKit release check on GitHub.
 
 ## Disclaimer
 

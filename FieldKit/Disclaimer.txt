@@ -1,0 +1,27 @@
+This software is provided "as is," without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. In no event shall the author be liable for any claim, damages, or other liability arising from the use of this software.
+
+SYSTEM MODIFICATIONS
+
+FieldKit performs privileged operations that modify your system state, including but not limited to:
+
+• Deleting temporary files and emptying the Recycle Bin
+• Flushing DNS cache
+• Writing Windows Registry keys (Storage Sense configuration)
+• Running Windows Update, DISM, and System File Checker
+• Installing and updating applications via winget
+• Downloading Sysinternals tools from Microsoft into the support kit folder
+• Creating the folder C:\FieldKit and a desktop shortcut to it for all users
+• Deleting that folder's tools, reports and logs when you choose Remove kit
+• Performing disk defragmentation or SSD retrim
+
+You assume all risk associated with running these operations.
+
+NOT AFFILIATED WITH MICROSOFT
+
+This application is an independent, open-source project. It is not affiliated with, endorsed by, or supported by Microsoft Corporation.
+
+NO TELEMETRY
+
+This application sends no usage data. It contacts the network only for work you start, plus one automatic step: opening Install apps asks winget which applications are already installed.
+
+Created by Keith S. Crawford (@tsudo). Licensed under the MIT License.

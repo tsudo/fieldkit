@@ -34,10 +34,17 @@ public partial class MainWindow : Window
 
         _pageFactories = new Dictionary<RadioButton, Func<UserControl>>
         {
-            [NavMaintain] = () => new MaintainPage(tasks, logger),
+            [NavUpdates] = () => new UpdatesPage(logger, tasks, () => NavReports.IsChecked = true),
+            [NavMaintain] = () => new SectionPage(
+                ("PC health", () => new HealthPage(logger, () => OpenSection(NavMaintain, "Startup review"), () => NavUpdates.IsChecked = true)),
+                ("Startup review", () => new StartupReviewPage(logger)),
+                ("Cleanup & repair", () => new MaintainPage(tasks.Where(task => task.Category != "Update").ToList(), logger))),
+            [NavSettings] = () => new SectionPage(("Network", () => new NetworkPage(logger)),
+                ("Storage Sense", () => new StorageSettingsPage(logger))),
             [NavApps] = () => new AppsPage(logger),
             [NavKit] = () => new SupportKitPage(logger),
-            [NavReports] = () => new ReportsPage(logger)
+            [NavReports] = () => new ReportsPage(logger),
+            [NavAbout] = () => new AboutPage(logger)
         };
 
         _logger.LogWritten += OnLogWritten;
@@ -70,15 +77,34 @@ public partial class MainWindow : Window
             _logger.Log($"Using temporary kit folder {AppPaths.Root}.", "WARN");
         }
 
-        // `FieldKit.exe --page apps` opens straight on a page; anything else opens Maintain.
         var start = startPage?.ToLowerInvariant() switch
         {
             "apps" => NavApps,
+            "maintain" or "tools" => NavMaintain,
+            "startup" or "health" => NavMaintain,
+            "settings" or "network" or "storage" => NavSettings,
             "kit" => NavKit,
             "reports" => NavReports,
-            _ => NavMaintain
+            "about" => NavAbout,
+            _ => NavUpdates
         };
+        var section = startPage?.ToLowerInvariant() switch
+        {
+            "startup" => "Startup review", "maintain" => "Cleanup & repair", "storage" => "Storage Sense", _ => null
+        };
+        if (section is not null)
+        {
+            var page = (SectionPage)_pageFactories[start]();
+            page.InitialSection = section;
+            _pages[start] = page;
+        }
         start.IsChecked = true;
+    }
+
+    private void OpenSection(RadioButton nav, string title)
+    {
+        nav.IsChecked = true;
+        ((SectionPage)_pages[nav]).Show(title);
     }
 
     private void Nav_Checked(object sender, RoutedEventArgs e)
@@ -122,9 +148,11 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closeWhenIdle) return;
 
+        var canStop = RunLock.CanStop;
+        var prompt = canStop ? "Request a stop, then close FieldKit when the operation finishes?"
+            : "Close FieldKit automatically when the operation finishes?";
         var answer = MessageBox.Show(this,
-            $"{RunLock.Owner} is still running.\n\nStop it and close FieldKit? The current step is ended partway through; " +
-            "FieldKit closes as soon as it has stopped and written its summary.",
+            $"{RunLock.Owner} is still running.\n\n{prompt}",
             "FieldKit", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
 
@@ -136,8 +164,8 @@ public partial class MainWindow : Window
         }
 
         _closeWhenIdle = true;
-        BusyText.Text = $"Stopping {RunLock.Owner}, then closing";
-        RunLock.RequestStop();
+        BusyText.Text = canStop ? $"Stopping {RunLock.Owner}, then closing" : $"Closing after {RunLock.Owner}";
+        if (canStop) RunLock.RequestStop();
     }
 
     private void OpenKitFolder_Click(object sender, RoutedEventArgs e) => Shell.Open(AppPaths.Root, _logger);

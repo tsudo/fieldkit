@@ -70,9 +70,15 @@ public static class RunHistory
     {
         try
         {
-            // Milliseconds in the name: a preview and a real run can start in the same second.
-            var name = $"run-{summary.Started:yyyyMMdd-HHmmss-fff}-{Slug(summary.Kind)}.json";
-            File.WriteAllText(Path.Combine(AppPaths.Logs, name), Serialize(summary));
+            var name = $"run-{summary.Started:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}-{Slug(summary.Kind)}.json";
+            var destination = Path.Combine(AppPaths.Logs, name);
+            var staging = destination + ".tmp";
+            try
+            {
+                File.WriteAllText(staging, Serialize(summary));
+                File.Move(staging, destination);
+            }
+            finally { File.Delete(staging); }
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

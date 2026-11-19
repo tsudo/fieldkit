@@ -33,6 +33,7 @@ public partial class DisclaimerWindow : Window
     public DisclaimerWindow()
     {
         InitializeComponent();
+        DisclaimerText.Text = Services.AboutContent.Disclaimer;
         VersionTitle.Text = $"FieldKit {Services.SystemInfo.GetDisplayVersion()}";
     }
 

@@ -18,7 +18,9 @@ public sealed record CatalogBundle(
 public sealed record CatalogLink(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("url")] string Url,
-    [property: JsonPropertyName("note")] string Note);
+    [property: JsonPropertyName("note")] string Note,
+    [property: JsonPropertyName("featured")] bool Featured = false,
+    [property: JsonPropertyName("action")] string Action = "Open page");
 
 /// <summary>The curated app list shipped inside the exe (Catalog/apps.json).</summary>
 public sealed record AppCatalog(

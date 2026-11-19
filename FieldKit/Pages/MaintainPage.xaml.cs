@@ -8,7 +8,7 @@ namespace FieldKit.Pages;
 
 public partial class MaintainPage : UserControl, IPage
 {
-    private static readonly string[] CategoryOrder = ["Prepare", "Clean up", "Update", "Repair"];
+    private static readonly string[] CategoryOrder = ["Prepare", "Clean up", "Repair"];
 
     private readonly Logger _logger;
     private readonly RunEngine _engine;
@@ -25,7 +25,7 @@ public partial class MaintainPage : UserControl, IPage
         InitializeComponent();
         _logger = logger;
         _engine = new RunEngine(logger);
-        _rows = tasks.Select(task => new TaskViewModel(task)).ToList();
+        _rows = tasks.Select(task => new TaskViewModel(task) { IsSelected = false }).ToList();
 
         foreach (var row in _rows)
             row.SelectionChanged += OnRowSelectionChanged;
@@ -40,7 +40,6 @@ public partial class MaintainPage : UserControl, IPage
         _clock.Tick += (_, _) => OnClockTick();
         RunLock.Changed += () => Dispatcher.Invoke(UpdateRunButton);
 
-        PresetQuick.IsChecked = true;
         UpdateRunButton();
     }
 
@@ -76,10 +75,8 @@ public partial class MaintainPage : UserControl, IPage
     {
         Func<TaskViewModel, bool> predicate =
             sender == PresetCleanup ? row => row.Category is "Prepare" or "Clean up"
-            : sender == PresetUpdates ? row => row.Category == "Update"
             : sender == PresetRepair ? row => row.Category is "Prepare" or "Repair"
-            : sender == PresetAll ? _ => true
-            : row => row.Task.SelectedByDefault;
+            : _ => true;
 
         _applyingPreset = true;
         foreach (var row in _rows)
@@ -110,7 +107,7 @@ public partial class MaintainPage : UserControl, IPage
         var count = _rows.Count(row => row.IsSelected);
         var verb = PreviewCheck.IsChecked == true ? "Preview" : "Run";
         RunButton.Content = count == 1 ? $"{verb} 1 step" : $"{verb} {count} steps";
-        RunButton.IsEnabled = _runCts is null && !RunLock.IsBusy;
+        RunButton.IsEnabled = count > 0 && _runCts is null && !RunLock.IsBusy;
 
         if (_runCts is null)
             StatusText.Text = RunLock.IsBusy ? $"Waiting: {RunLock.Owner} is running" : "";

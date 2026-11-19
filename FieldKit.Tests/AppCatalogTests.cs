@@ -22,6 +22,19 @@ public class AppCatalogTests
     }
 
     [Fact]
+    public void Catalog_keeps_technician_tools_separate_and_exposes_the_Arq_installer()
+    {
+        var catalog = AppCatalog.Load();
+        Assert.Equal(new[] { "Firefox", "Bitwarden", "7-Zip", "VLC" },
+            catalog.Apps.Where(app => app.Bundles.Contains("essentials")).Select(app => app.Name));
+        Assert.DoesNotContain(catalog.Apps, app => app.Id == "PatchMyPC.PatchMyPC");
+        var link = Assert.Single(catalog.Links, link => link.Featured);
+        Assert.Equal("uBlock Origin for Firefox", link.Name);
+        Assert.Contains(catalog.Links, item => item.Name == "Arq Backup" && item.Action == "Get Windows installer");
+        Assert.Equal(new[] { "Notepad++", "Everything" }, catalog.Apps.Where(a => a.Bundles.Contains("technician")).Select(a => a.Name));
+    }
+
+    [Fact]
     public void Every_bundle_has_at_least_one_app()
     {
         var catalog = AppCatalog.Load();
