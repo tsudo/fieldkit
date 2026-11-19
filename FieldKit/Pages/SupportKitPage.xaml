@@ -11,12 +11,15 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock Text="Support kit" Style="{StaticResource Fk.PageTitle}"/>
-            <TextBlock Text="Stages troubleshooting tools and a snapshot of this PC in one folder."
+            <TextBlock Text="Install FieldKit or collect troubleshooting tools and reports. Machine preferences are in config.json and run logs are in Logs."
                        Style="{StaticResource Fk.PageSubtitle}"/>
         </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource Fk.Card}">
             <DockPanel>
+                <Button x:Name="InstallButton" DockPanel.Dock="Right" Content="Install FieldKit" Padding="10,3"
+                        Margin="6,0,0,0" Style="{StaticResource Fk.Button}" Click="Install_Click"
+                        ToolTip="Save FieldKit on this PC and add desktop, Start menu and support folder shortcuts."/>
                 <Button DockPanel.Dock="Right" Content="Open folder" Padding="10,3" MinHeight="26" FontSize="12"
                         Style="{StaticResource Fk.Button}" Click="OpenFolder_Click"/>
                 <StackPanel>

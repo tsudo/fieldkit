@@ -307,7 +307,7 @@ public sealed class SupportKitService
         return sb.ToString();
     }
 
-    private static string BuildStartupItems()
+    internal static string BuildStartupItems()
     {
         var sb = new StringBuilder();
 
@@ -320,8 +320,9 @@ public sealed class SupportKitService
                 using var key = baseKey.OpenSubKey(path);
                 var names = key?.GetValueNames() ?? [];
                 if (names.Length == 0) sb.AppendLine("  (none)");
-                foreach (var name in names)
+                foreach (var name in names.Take(512))
                     sb.AppendLine($"  {name} = {key!.GetValue(name)}");
+                if (names.Length > 512) sb.AppendLine("  (first 512 values shown)");
             }
             catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
             {
@@ -337,9 +338,10 @@ public sealed class SupportKitService
             {
                 var files = Directory.EnumerateFiles(Environment.GetFolderPath(folder))
                     .Where(file => !Path.GetFileName(file).Equals("desktop.ini", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                    .Take(513).ToList();
                 if (files.Count == 0) sb.AppendLine("  (none)");
-                foreach (var file in files) sb.AppendLine($"  {Path.GetFileName(file)}");
+                foreach (var file in files.Take(512)) sb.AppendLine($"  {Path.GetFileName(file)}");
+                if (files.Count > 512) sb.AppendLine("  (first 512 files shown)");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
@@ -367,6 +369,114 @@ public sealed class SupportKitService
     // ----------------------------------------------------------------
     // Shortcut, zip, remove
     // ----------------------------------------------------------------
+
+    public KitOutcome SavePortableExecutable()
+    {
+        // A framework-dependent apphost cannot run without its companion files.
+#pragma warning disable IL3000 // An empty assembly location identifies the single-file bundle.
+        var isPortable = typeof(SupportKitService).Assembly.Location.Length == 0;
+#pragma warning restore IL3000
+        if (!isPortable || Environment.ProcessPath is not { } source)
+            return new KitOutcome(false, "Use the portable FieldKit build to include FieldKit.exe");
+
+        try
+        {
+            var outcome = CopyPortableExecutable(source, AppPaths.Root);
+            _logger.Log($"[Support kit] {outcome.Message}", "OK");
+            return outcome;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.Log($"[Support kit] Could not save FieldKit.exe: {ex.Message}", "ERROR");
+            return new KitOutcome(false, ex.Message);
+        }
+    }
+
+    internal static KitOutcome CopyPortableExecutable(string source, string root)
+    {
+        var destination = Path.Combine(root, "FieldKit.exe");
+        if (AppPaths.IsReparsePoint(root))
+            throw new IOException("The support folder is a link or could not be inspected");
+
+        try
+        {
+            if (File.GetAttributes(destination).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("FieldKit.exe in the support folder is a link");
+        }
+        catch (FileNotFoundException)
+        {
+            // First build: there is no previous executable to replace.
+        }
+
+        if (Path.GetFullPath(source).Equals(Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
+            return new KitOutcome(true, "FieldKit.exe is already in the support folder");
+
+        // Stage beside the destination so an interrupted copy leaves the previous exe intact.
+        var staging = Path.Combine(root, $".fieldkit-copy-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            File.Copy(source, staging);
+            File.Move(staging, destination, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(staging);
+        }
+
+        return new KitOutcome(true, "Saved FieldKit.exe in the support folder");
+    }
+
+    public KitOutcome InstallApplication()
+    {
+        var root = AppPaths.Root;
+        if (AppPaths.IsTemporaryRoot)
+            return new(false, "A permanent FieldKit folder is required to install.");
+
+        var saved = SavePortableExecutable();
+        if (!saved.Succeeded) return saved;
+        UpdatePreferences.Load();
+        using (var launcher = typeof(SupportKitService).Assembly.GetManifestResourceStream("FieldKit.UpdateLauncher.ps1")
+                   ?? throw new InvalidOperationException("The update launcher is missing from this build."))
+        {
+            var staging = Path.Combine(root, $".launcher-{Guid.NewGuid():N}.tmp");
+            try
+            {
+                using (var output = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    launcher.CopyTo(output);
+                File.Move(staging, Path.Combine(root, "FieldKit-Update.ps1"), overwrite: true);
+            }
+            finally { File.Delete(staging); }
+        }
+        var target = Path.Combine(root, "FieldKit.exe");
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+        var programs = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
+        if (desktop.Length == 0 || programs.Length == 0)
+            return new(false, "Windows could not locate the shared Desktop or Start menu.");
+
+        CreateLaunchShortcuts(target, root, programs, desktop);
+        return new(true, $"Installed in {root}. Open Launch FieldKit from the desktop or Start menu.");
+    }
+
+    internal static void CreateLaunchShortcuts(string target, params string[] folders)
+    {
+        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", true)!)!;
+        foreach (var folder in folders)
+        {
+            var staging = Path.Combine(folder, $".fieldkit-{Guid.NewGuid():N}.lnk");
+            try
+            {
+                dynamic shortcut = shell.CreateShortcut(staging);
+                shortcut.TargetPath = target;
+                shortcut.WorkingDirectory = Path.GetDirectoryName(target);
+                shortcut.Save();
+                File.Move(staging, Path.Combine(folder, "Launch FieldKit.lnk"), overwrite: true);
+            }
+            finally
+            {
+                File.Delete(staging);
+            }
+        }
+    }
 
     public KitOutcome CreateDesktopShortcut()
     {

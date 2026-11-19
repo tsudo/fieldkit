@@ -83,11 +83,33 @@ public partial class SupportKitPage : UserControl, IPage
 
         var idle = _cts is null && !RunLock.IsBusy;
         BuildButton.IsEnabled = idle;
+        InstallButton.IsEnabled = idle;
         ZipButton.IsEnabled = idle;
         RemoveButton.IsEnabled = idle;
     }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e) => Shell.Open(AppPaths.Root, _logger);
+
+    private async void Install_Click(object sender, RoutedEventArgs e)
+    {
+        if (!RunLock.TryEnter("Install FieldKit")) return;
+        try
+        {
+            var result = await Task.Run(_kit.InstallApplication);
+            MessageBox.Show(Window.GetWindow(this), result.Message, "Install FieldKit",
+                MessageBoxButton.OK, result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            _logger.Log($"Install FieldKit: {ex}", "ERROR");
+            MessageBox.Show(Window.GetWindow(this), $"Install could not finish. {ex.Message}",
+                "Install FieldKit", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            RunLock.Exit();
+        }
+    }
 
     // ================================================================
     // BUILD
@@ -157,6 +179,11 @@ public partial class SupportKitPage : UserControl, IPage
 
         try
         {
+            StatusText.Text = "Saving FieldKit.exe";
+            var executable = await Task.Run(_kit.SavePortableExecutable);
+            items.Add(new RunItem("FieldKit.exe", executable.Succeeded ? "Success" : "Error", executable.Message));
+            if (executable.Succeeded) success++; else error++;
+
             foreach (var row in tools)
                 await RunRowAsync(row, ct => _kit.InstallToolAsync(row.Tool, ct));
 

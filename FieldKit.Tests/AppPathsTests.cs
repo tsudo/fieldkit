@@ -22,6 +22,52 @@ public sealed class AppPathsTests : IDisposable
 
     private readonly List<string> _junctions = new();
 
+    [Fact]
+    public void InstallWritesAndRefreshesAllThreeLaunchShortcuts()
+    {
+        string[] folders = [_root, Directory.CreateDirectory(Path.Combine(_root, "Programs")).FullName,
+            Directory.CreateDirectory(Path.Combine(_root, "Desktop")).FullName];
+        var target = Path.Combine(_root, "FieldKit.exe");
+        SupportKitService.CreateLaunchShortcuts(Path.Combine(_outside, "Old.exe"), folders);
+        SupportKitService.CreateLaunchShortcuts(target, folders);
+        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", true)!)!;
+        foreach (var folder in folders)
+        {
+            var link = Path.Combine(folder, "Launch FieldKit.lnk");
+            Assert.True(File.Exists(link));
+            dynamic shortcut = shell.CreateShortcut(link);
+            Assert.Equal(target, (string)shortcut.TargetPath, ignoreCase: true);
+            Assert.Equal(_root, (string)shortcut.WorkingDirectory, ignoreCase: true);
+        }
+    }
+
+    [Fact]
+    public void SupportKitSavesAndRefreshesPortableExecutable()
+    {
+        var source = Path.Combine(_outside, "Renamed.exe");
+        var destination = Path.Combine(_root, "FieldKit.exe");
+        File.WriteAllText(source, "first build");
+
+        Assert.True(SupportKitService.CopyPortableExecutable(source, _root).Succeeded);
+        Assert.Equal("first build", File.ReadAllText(destination));
+
+        File.WriteAllText(source, "second build");
+        Assert.True(SupportKitService.CopyPortableExecutable(source, _root).Succeeded);
+        Assert.Equal("second build", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFiles(_root, ".fieldkit-copy-*.tmp"));
+    }
+
+    [Fact]
+    public void SupportKitLeavesTheRunningCopyInPlace()
+    {
+        var executable = Path.Combine(_root, "FieldKit.exe");
+        File.WriteAllText(executable, "running build");
+        using var lockedExecutable = File.Open(executable, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        Assert.True(SupportKitService.CopyPortableExecutable(executable, _root).Succeeded);
+        Assert.Equal("running build", File.ReadAllText(executable));
+    }
+
     public void Dispose()
     {
         // Remove each junction as a plain directory entry first. A recursive

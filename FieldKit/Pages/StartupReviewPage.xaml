@@ -1,0 +1,57 @@
+<UserControl x:Class="FieldKit.Pages.StartupReviewPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <DataTemplate x:Key="Entry">
+            <StackPanel Margin="4,3,4,8">
+                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                <TextBlock Style="{StaticResource Fk.Secondary}" TextWrapping="Wrap">
+                    <Run Text="{Binding Category, Mode=OneWay}"/> · <Run Text="{Binding DisplayAccount, Mode=OneWay}"/> · <Run Text="{Binding Enabled, Mode=OneWay}"/>
+                </TextBlock>
+                <TextBlock Text="{Binding Publisher}" Style="{StaticResource Fk.Secondary}" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding DisplayPath}" Style="{StaticResource Fk.Secondary}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Startup review" Style="{StaticResource Fk.PageTitle}"/>
+            <WrapPanel Margin="0,6">
+                <Button Content="Scan startup" x:Name="ScanButton" Style="{StaticResource Fk.Button.Primary}" Click="Scan_Click" Margin="0,0,6,4"/>
+                <Button Content="Get Autoruns" x:Name="DownloadButton" Style="{StaticResource Fk.Button}" Click="Download_Click" Margin="0,0,6,4"/>
+                <Button Content="Stop" x:Name="StopButton" Style="{StaticResource Fk.Button}" Click="Stop_Click" Visibility="Collapsed" Margin="0,0,6,4"/>
+                <Button Content="Task Manager" Style="{StaticResource Fk.Button}" Click="TaskManager_Click" Margin="0,0,6,4" ToolTip="Review measured impact under Startup apps."/>
+                <Button Content="Open Autoruns" x:Name="OpenButton" Style="{StaticResource Fk.Button}" Click="Open_Click" Margin="0,0,6,4"/>
+            </WrapPanel>
+            <TextBlock x:Name="Status" Style="{StaticResource Fk.Secondary}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <Expander x:Name="WarningPanel" Header="Scan coverage" Visibility="Collapsed" Margin="0,0,0,6">
+                <ScrollViewer MaxHeight="90" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="WarningText" TextWrapping="Wrap" Style="{StaticResource Fk.Secondary}"/>
+                </ScrollViewer>
+            </Expander>
+        </StackPanel>
+        <Grid>
+            <TabControl x:Name="Tabs" Visibility="Collapsed">
+                <TabItem x:Name="SignInTab" Header="Sign-in">
+                    <ListBox x:Name="SignIn" ItemTemplate="{StaticResource Entry}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                </TabItem>
+                <TabItem x:Name="ChangesTab" Header="Changes">
+                    <ListBox x:Name="Changes" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate><DataTemplate>
+                            <StackPanel Margin="4,3,4,8">
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"><Run Text="{Binding Kind, Mode=OneWay}"/> · <Run Text="{Binding Name, Mode=OneWay}"/></TextBlock>
+                                <TextBlock Text="{Binding Account}" Style="{StaticResource Fk.Secondary}"/>
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource Fk.Secondary}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+                <TabItem x:Name="AdvancedTab" Header="Advanced">
+                    <ListBox x:Name="Advanced" ItemTemplate="{StaticResource Entry}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                </TabItem>
+            </TabControl>
+            <TextBox x:Name="BasicText" Visibility="Collapsed" IsReadOnly="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" Padding="8" />
+        </Grid>
+    </DockPanel>
+</UserControl>

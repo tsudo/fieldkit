@@ -19,7 +19,7 @@ dotnet run --project FieldKit -p:FieldKitNoElevate=true --no-incremental
 
 `--no-incremental` matters: the manifest is embedded at compile time, and an incremental build keeps whichever one was compiled last. For the same reason, rebuild with `--no-incremental` before publishing if you have used this switch. CI fails a publish that lacks the administrator manifest.
 
-Steps that need administrator rights fail in this mode. Debug builds also accept `--capture file.png`, which renders the window to a PNG and exits; add `--page apps` (or `kit`, `reports`) to choose the page.
+Steps that need administrator rights fail in this mode. Debug builds also accept `--capture file.png`, which renders the window to a PNG and exits. The default page is Updates. Use `--page apps`, `tools`, `kit` or `reports` to check another page.
 
 Colours and control styles live in `FieldKit/Themes/Theme.xaml`. Don't set a hex colour anywhere else.
 

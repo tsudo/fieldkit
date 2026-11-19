@@ -28,13 +28,19 @@
                         Style="{StaticResource Fk.Button}" Click="OpenKitFolder_Click"/>
 
                 <StackPanel>
-                    <RadioButton x:Name="NavMaintain" Content="Maintain" GroupName="Nav"
+                    <RadioButton x:Name="NavUpdates" Content="Updates" GroupName="Nav"
                                  Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
-                    <RadioButton x:Name="NavApps" Content="Apps" GroupName="Nav"
+                    <RadioButton x:Name="NavApps" Content="Install apps" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavMaintain" Content="Tools &amp; repair" GroupName="Nav"
                                  Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavKit" Content="Support kit" GroupName="Nav"
                                  Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavSettings" Content="Settings" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavReports" Content="Reports" GroupName="Nav"
+                                 Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavAbout" Content="About" GroupName="Nav"
                                  Style="{StaticResource Fk.NavItem}" Checked="Nav_Checked"/>
                 </StackPanel>
             </DockPanel>

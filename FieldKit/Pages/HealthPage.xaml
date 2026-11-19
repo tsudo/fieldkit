@@ -1,0 +1,37 @@
+<UserControl x:Class="FieldKit.Pages.HealthPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh checks"
+                    Click="Refresh_Click" Style="{StaticResource Fk.Button}"/>
+            <StackPanel>
+                <TextBlock Text="PC health" Style="{StaticResource Fk.PageTitle}"/>
+                <TextBlock x:Name="StatusText" Style="{StaticResource Fk.Secondary}" Margin="0,3,0,0"/>
+            </StackPanel>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+            <ItemsControl x:Name="FindingList" Margin="0,0,8,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Fk.Card}" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding State}" Style="{StaticResource Fk.Secondary}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Fk.RowDetail}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="{Binding Action}" Margin="12,0,0,0"
+                                        Style="{StaticResource Fk.Button}" VerticalAlignment="Center" Click="Action_Click"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

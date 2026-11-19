@@ -53,11 +53,9 @@ public sealed partial class WingetService
             "Microsoft", "WindowsApps", "winget.exe");
         if (!File.Exists(alias)) return null;
 
-        // The real entry is an app execution alias, which is a reparse point
-        // created by Windows. An ordinary file at this user-writable path is
-        // something else wearing the name, and FieldKit would run it elevated.
-        try { return File.GetAttributes(alias).HasFlag(FileAttributes.ReparsePoint) ? alias : null; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        // Honor the per-account alias setting, but never execute a user-writable
+        // alias. Resolve the actual binary from Windows' package registration.
+        return WingetPackage.FindExecutable();
     }
 
     public async Task<WingetScan> ScanAsync(CancellationToken ct)
@@ -69,6 +67,15 @@ public sealed partial class WingetService
         if (installed is null)
             problems.Add("winget could not report which apps are installed, so installed apps are not marked.");
 
+        var (upgrades, scanProblem) = await ListUpgradesAsync(ct);
+        if (scanProblem is not null) problems.Add(scanProblem);
+        var problem = problems.Count == 0 ? null : string.Join(" ", problems);
+        return new WingetScan(installed, upgrades, problem);
+    }
+
+    internal async Task<(IReadOnlyList<WingetUpgrade> Upgrades, string? Problem)> ListUpgradesAsync(CancellationToken ct)
+    {
+        var winget = ResolvePath() ?? throw new InvalidOperationException("winget is not installed for this account.");
         var result = await CommandRunner.RunAsync(winget, $"upgrade {CommonFlags}",
             cancellationToken: ct, outputEncoding: Encoding.UTF8, timeout: TimeSpan.FromMinutes(3));
 
@@ -81,16 +88,15 @@ public sealed partial class WingetService
 
         var upgrades = ParseUpgradeTable(result.Output);
         var announced = ParseAnnouncedCount(result.Output);
-        if (announced is { } expected && expected != upgrades.Count)
-        {
-            problems.Add($"winget reported {expected} update(s) but FieldKit could read {upgrades.Count} of them. " +
-                         "Run \"winget upgrade\" in a terminal to see the full list.");
-        }
-
-        var problem = problems.Count == 0 ? null : string.Join(" ", problems);
-        _logger.Log($"[Apps] Scan found {(installed is null ? "an unknown number of" : installed.Count.ToString())} installed package(s) known to winget, " +
-                    $"{upgrades.Count} with an update.{(problem is null ? "" : " " + problem)}", problem is null ? "INFO" : "WARN");
-        return new WingetScan(installed, upgrades, problem);
+        string? problem = announced is { } count && count != upgrades.Count
+            ? $"winget reported {count} update(s) but FieldKit could read {upgrades.Count}. Run winget upgrade to see the full list."
+            : null;
+        if (result.ExitCode == 0 && upgrades.Count == 0 && announced is null
+            && !result.Output.Any(line => line.Contains("No applicable upgrade found", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("No available upgrade found", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("require explicit targeting", StringComparison.OrdinalIgnoreCase)))
+            problem = "FieldKit could not verify the winget output. Run winget upgrade to check for updates.";
+        return (upgrades, problem);
     }
 
     /// <summary>The number in winget's "N upgrades available." line, or null when there is no such line.</summary>
@@ -107,6 +113,12 @@ public sealed partial class WingetService
     }
 
     /// <summary>Installed package IDs, or null when winget's export could not be produced or read.</summary>
+    public Task<IReadOnlySet<string>?> GetInstalledIdsAsync(CancellationToken ct)
+    {
+        var winget = ResolvePath() ?? throw new InvalidOperationException("winget is not installed for this account.");
+        return GetInstalledIdsAsync(winget, ct);
+    }
+
     private async Task<IReadOnlySet<string>?> GetInstalledIdsAsync(string winget, CancellationToken ct)
     {
         // `winget export` is the one command that reports installed packages as
@@ -184,6 +196,7 @@ public sealed partial class WingetService
             var lastReturn = line.LastIndexOf('\r');
             if (lastReturn >= 0) line = line[(lastReturn + 1)..];
             if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.Contains("require explicit targeting", StringComparison.OrdinalIgnoreCase)) break;
 
             var tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -240,7 +253,8 @@ public sealed partial class WingetService
         if (!PackageIdPattern().IsMatch(packageId))
             throw new ArgumentException($"Not a winget package ID: {packageId}", nameof(packageId));
 
-        return $"{verb} --id \"{packageId}\" --exact --silent --accept-package-agreements {CommonFlags}";
+        var installOnly = verb == "install" ? " --no-upgrade" : "";
+        return $"{verb} --id \"{packageId}\" --exact{installOnly} --silent --accept-package-agreements {CommonFlags}";
     }
 
     private async Task<WingetOutcome> RunPackageCommandAsync(string verb, string packageId, CancellationToken ct)

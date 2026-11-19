@@ -11,17 +11,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Maintain" Style="{StaticResource Fk.PageTitle}"/>
-            <TextBlock Text="Pick a preset or tick individual steps. Steps run top to bottom."
+            <TextBlock Text="Tools &amp; repair" Style="{StaticResource Fk.PageTitle}"/>
+            <TextBlock Text="Select cleanup or repair steps for this PC."
                        Style="{StaticResource Fk.PageSubtitle}"/>
         </StackPanel>
 
         <StackPanel x:Name="PresetBar" Grid.Row="1" Orientation="Horizontal">
-            <RadioButton x:Name="PresetQuick" Content="Quick tune-up" GroupName="MaintainPreset"
-                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
             <RadioButton x:Name="PresetCleanup" Content="Cleanup" GroupName="MaintainPreset"
-                         Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
-            <RadioButton x:Name="PresetUpdates" Content="Updates" GroupName="MaintainPreset"
                          Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>
             <RadioButton x:Name="PresetRepair" Content="Deep repair" GroupName="MaintainPreset"
                          Style="{StaticResource Fk.Chip}" Click="Preset_Click"/>

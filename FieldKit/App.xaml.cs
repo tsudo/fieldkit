@@ -9,13 +9,19 @@ public partial class App : Application
 {
     private Logger? _logger;
 
-    private void App_Startup(object sender, StartupEventArgs e)
+    private async void App_Startup(object sender, StartupEventArgs e)
     {
         try
         {
             // Until the main window exists, closing the licence dialog must not
             // count as closing the application's last window.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+            if (e.Args.FirstOrDefault()?.Equals("--update", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Shutdown(await UpdateCli.RunAsync(e.Args));
+                return;
+            }
 
             if (!DisclaimerWindow.HasAccepted())
             {
@@ -34,8 +40,6 @@ public partial class App : Application
                 new ClearTemporaryFilesTask(),
                 new EmptyRecycleBinTask(),
                 new FlushDnsCacheTask(),
-                new StorageSenseTask(),
-                new WindowsUpdateTask(),
                 new OfficeUpdateTask(),
                 new StoreUpdateTask(),
                 new SfcTask(),
